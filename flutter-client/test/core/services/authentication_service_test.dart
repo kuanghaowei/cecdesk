@@ -6,7 +6,7 @@ import 'package:remote_desktop_client/src/core/services/authentication_service.d
 import 'package:remote_desktop_client/src/core/services/secure_storage_service.dart';
 
 /// Property-based tests for AuthenticationService
-/// Feature: remote-desktop-client
+/// Feature: cec-remote
 /// Validates: Requirements 17.x, 17a.x, 18.x
 
 void main() {
@@ -29,7 +29,7 @@ void main() {
     /// contain valid session ID and expiration time information
     /// **Validates: Requirement 17.1**
     test('Property 25: QR code session information completeness', () async {
-      // Feature: remote-desktop-client, Property 25: QR code session information completeness
+      // Feature: cec-remote, Property 25: QR code session information completeness
       
       const iterations = 100;
       
@@ -67,7 +67,7 @@ void main() {
     /// expire it after 5 minutes
     /// **Validates: Requirement 17.5**
     test('Property 26: QR code expiration mechanism', () async {
-      // Feature: remote-desktop-client, Property 26: QR code expiration mechanism
+      // Feature: cec-remote, Property 26: QR code expiration mechanism
       
       const iterations = 100;
       
@@ -105,7 +105,7 @@ void main() {
 
     /// Property: QR code session IDs are unique
     test('QR code session IDs are unique', () async {
-      // Feature: remote-desktop-client, Property: QR code uniqueness
+      // Feature: cec-remote, Property: QR code uniqueness
       
       const iterations = 100;
       final sessionIds = <String>{};
@@ -131,7 +131,7 @@ void main() {
     /// *For any* sent SMS verification code, the system should expire it after 5 minutes
     /// **Validates: Requirement 17.15**
     test('Property 27: SMS verification code expiration mechanism', () async {
-      // Feature: remote-desktop-client, Property 27: SMS verification code expiration
+      // Feature: cec-remote, Property 27: SMS verification code expiration
       
       const iterations = 50;
       final random = Random();
@@ -160,7 +160,7 @@ void main() {
     /// the system should lock that phone number for 30 minutes
     /// **Validates: Requirement 17.14**
     test('Property 28: Verification code error lock mechanism', () async {
-      // Feature: remote-desktop-client, Property 28: Verification code error lock
+      // Feature: cec-remote, Property 28: Verification code error lock
       
       const iterations = 10;
       final random = Random();
@@ -200,7 +200,7 @@ void main() {
     /// and use platform secure storage mechanism to store login credentials
     /// **Validates: Requirement 17.16, 18.2**
     test('Property 29: Login session creation and storage', () async {
-      // Feature: remote-desktop-client, Property 29: Login session creation and storage
+      // Feature: cec-remote, Property 29: Login session creation and storage
       
       const iterations = 50;
       final random = Random();
@@ -246,7 +246,7 @@ void main() {
     /// and all login credentials
     /// **Validates: Requirement 17.18**
     test('Property 30: Logout session clearing', () async {
-      // Feature: remote-desktop-client, Property 30: Logout session clearing
+      // Feature: cec-remote, Property 30: Logout session clearing
       
       const iterations = 50;
       
@@ -288,7 +288,7 @@ void main() {
     /// session tokens to maintain security
     /// **Validates: Requirement 18.5**
     test('Property 32: Session token periodic refresh', () async {
-      // Feature: remote-desktop-client, Property 32: Session token periodic refresh
+      // Feature: cec-remote, Property 32: Session token periodic refresh
       
       const iterations = 50;
       
@@ -334,7 +334,7 @@ void main() {
     /// the system should expire that session
     /// **Validates: Requirement 18.6**
     test('Property 33: Session expiration mechanism', () async {
-      // Feature: remote-desktop-client, Property 33: Session expiration mechanism
+      // Feature: cec-remote, Property 33: Session expiration mechanism
       
       const iterations = 50;
       final random = Random();
@@ -371,7 +371,7 @@ void main() {
     /// to encrypt all login-related communications
     /// **Validates: Requirement 18.1**
     test('Property 31: Login credential transmission encryption', () {
-      // Feature: remote-desktop-client, Property 31: Login credential transmission encryption
+      // Feature: cec-remote, Property 31: Login credential transmission encryption
       
       // Note: This property is verified at the network layer
       // Here we verify that the service is designed to use secure endpoints
@@ -386,7 +386,7 @@ void main() {
     /// the system should temporarily lock that account
     /// **Validates: Requirement 18.7**
     test('Property 34: Account lock mechanism', () async {
-      // Feature: remote-desktop-client, Property 34: Account lock mechanism
+      // Feature: cec-remote, Property 34: Account lock mechanism
       
       const iterations = 10;
       final random = Random();
@@ -423,7 +423,7 @@ void main() {
     /// call WeChat SDK to get user authorization and complete login
     /// **Validates: Requirement 17a.1, 17a.2**
     test('Property 43: Mobile WeChat one-click login', () async {
-      // Feature: remote-desktop-client, Property 43: Mobile WeChat one-click login
+      // Feature: cec-remote, Property 43: Mobile WeChat one-click login
       
       const iterations = 50;
       
@@ -462,7 +462,7 @@ void main() {
     /// automatically fall back to SMS verification code login
     /// **Validates: Requirement 17a.6**
     test('Property 44: Mobile carrier one-click login fallback', () async {
-      // Feature: remote-desktop-client, Property 44: Mobile carrier one-click login fallback
+      // Feature: cec-remote, Property 44: Mobile carrier one-click login fallback
       
       const iterations = 50;
       

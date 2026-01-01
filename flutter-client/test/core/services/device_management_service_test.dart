@@ -6,7 +6,7 @@ import 'package:remote_desktop_client/src/core/services/device_management_servic
 import 'package:remote_desktop_client/src/core/services/secure_storage_service.dart';
 
 /// Property-based tests for DeviceManagementService
-/// Feature: remote-desktop-client
+/// Feature: cec-remote
 /// Validates: Requirements 20.x, 21.x
 
 void main() {
@@ -29,7 +29,7 @@ void main() {
     /// the system should reject all remote connection requests
     /// **Validates: Requirement 20.2**
     test('Property 36: Remote control switch rejects connections', () async {
-      // Feature: remote-desktop-client, Property 36: Remote control switch rejects connections
+      // Feature: cec-remote, Property 36: Remote control switch rejects connections
       
       const iterations = 100;
       final random = Random();
@@ -60,7 +60,7 @@ void main() {
     /// *For any* generated device code, it should be in 9-digit format
     /// **Validates: Requirement 20.3**
     test('Property 37: Device code format', () async {
-      // Feature: remote-desktop-client, Property 37: Device code format
+      // Feature: cec-remote, Property 37: Device code format
       
       const iterations = 100;
       
@@ -90,7 +90,7 @@ void main() {
     /// alphanumeric format
     /// **Validates: Requirement 20.4**
     test('Property 38: Connection password format', () async {
-      // Feature: remote-desktop-client, Property 38: Connection password format
+      // Feature: cec-remote, Property 38: Connection password format
       
       const iterations = 100;
       
@@ -120,7 +120,7 @@ void main() {
     /// generate a new password different from the old one
     /// **Validates: Requirement 20.5**
     test('Property 39: Connection password refresh', () async {
-      // Feature: remote-desktop-client, Property 39: Connection password refresh
+      // Feature: cec-remote, Property 39: Connection password refresh
       
       const iterations = 100;
       
@@ -153,7 +153,7 @@ void main() {
     /// remote connections
     /// **Validates: Requirement 20.7**
     test('Property 40: Screen lock password verification', () async {
-      // Feature: remote-desktop-client, Property 40: Screen lock password verification
+      // Feature: cec-remote, Property 40: Screen lock password verification
       
       const iterations = 100;
       final random = Random();
@@ -188,7 +188,7 @@ void main() {
 
     /// Property: Device code validation rejects invalid formats
     test('Device code validation rejects invalid formats', () {
-      // Feature: remote-desktop-client, Property: Device code validation
+      // Feature: cec-remote, Property: Device code validation
       
       final invalidCodes = [
         '',           // Empty
@@ -221,7 +221,7 @@ void main() {
 
     /// Property: Connection password validation rejects invalid formats
     test('Connection password validation rejects invalid formats', () {
-      // Feature: remote-desktop-client, Property: Connection password validation
+      // Feature: cec-remote, Property: Connection password validation
       
       final invalidPasswords = [
         '',            // Empty
@@ -259,7 +259,7 @@ void main() {
     /// automatically add that device to the device list
     /// **Validates: Requirement 21.10**
     test('Property 41: Device list persistence', () async {
-      // Feature: remote-desktop-client, Property 41: Device list persistence
+      // Feature: cec-remote, Property 41: Device list persistence
       
       const iterations = 50;
       final random = Random();
@@ -303,7 +303,7 @@ void main() {
     /// device record from the device list
     /// **Validates: Requirement 21.8**
     test('Property 42: Device deletion', () async {
-      // Feature: remote-desktop-client, Property 42: Device deletion
+      // Feature: cec-remote, Property 42: Device deletion
       
       const iterations = 50;
       final random = Random();
@@ -348,7 +348,7 @@ void main() {
 
     /// Property: Device rename persists
     test('Device rename persists', () async {
-      // Feature: remote-desktop-client, Property: Device rename
+      // Feature: cec-remote, Property: Device rename
       
       const iterations = 50;
       final random = Random();
@@ -383,7 +383,7 @@ void main() {
 
     /// Property: Adding duplicate device updates existing
     test('Adding duplicate device updates existing', () async {
-      // Feature: remote-desktop-client, Property: Duplicate device handling
+      // Feature: cec-remote, Property: Duplicate device handling
       
       const iterations = 50;
       

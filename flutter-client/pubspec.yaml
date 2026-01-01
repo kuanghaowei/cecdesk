@@ -1,5 +1,5 @@
-name: remote_desktop_client
-description: Cross-platform remote desktop client using Flutter and Rust core
+name: cec_remote_client
+description: CEC Remote - Cross-platform remote desktop client using Flutter and Rust core
 
 publish_to: 'none'
 
@@ -75,14 +75,14 @@ flutter:
 
 flutter_platforms:
   android:
-    package: com.example.remote_desktop_client
+    package: com.cec.remote
   ios:
-    bundle_id: com.example.remote_desktop_client
+    bundle_id: com.cec.remote
   web:
     renderer: canvaskit
   windows:
-    executable_name: remote_desktop_client
+    executable_name: cec_remote
   macos:
-    bundle_id: com.example.remote_desktop_client
+    bundle_id: com.cec.remote
   linux:
-    executable_name: remote_desktop_client
+    executable_name: cec_remote

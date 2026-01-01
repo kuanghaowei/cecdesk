@@ -1,6 +1,6 @@
 //! Property-based tests for Signaling Service
 //! 
-//! Feature: remote-desktop-client
+//! Feature: cec-remote
 //! Property 5: 信令交换性能 - Signaling exchange should complete within 5 seconds
 //! Property 6: 设备 ID 唯一性 - Device IDs should be unique
 //! Validates: Requirements 4.5, 5.1
@@ -82,7 +82,7 @@ fn ice_candidate_strategy() -> impl Strategy<Value = String> {
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(100))]
 
-    /// Feature: remote-desktop-client, Property 6: 设备 ID 唯一性
+    /// Feature: cec-remote, Property 6: 设备 ID 唯一性
     /// For any set of generated device IDs, all IDs should be unique
     /// Validates: Requirements 5.1
     #[test]
@@ -100,7 +100,7 @@ proptest! {
         prop_assert_eq!(ids.len(), count);
     }
 
-    /// Feature: remote-desktop-client, Property 6: 设备 ID 唯一性
+    /// Feature: cec-remote, Property 6: 设备 ID 唯一性
     /// Device IDs should be valid UUIDs
     /// Validates: Requirements 5.1
     #[test]
@@ -123,7 +123,7 @@ proptest! {
         }
     }
 
-    /// Feature: remote-desktop-client, Property 5: 信令交换性能
+    /// Feature: cec-remote, Property 5: 信令交换性能
     /// Signaling messages should serialize and deserialize correctly (round-trip)
     /// This is a prerequisite for fast signaling exchange
     /// Validates: Requirements 4.5
@@ -157,7 +157,7 @@ proptest! {
         }
     }
 
-    /// Feature: remote-desktop-client, Property 5: 信令交换性能
+    /// Feature: cec-remote, Property 5: 信令交换性能
     /// Answer messages should serialize and deserialize correctly
     /// Validates: Requirements 4.5
     #[test]
@@ -186,7 +186,7 @@ proptest! {
         }
     }
 
-    /// Feature: remote-desktop-client, Property 5: 信令交换性能
+    /// Feature: cec-remote, Property 5: 信令交换性能
     /// ICE candidate messages should serialize and deserialize correctly
     /// Validates: Requirements 4.5
     #[test]
@@ -215,7 +215,7 @@ proptest! {
         }
     }
 
-    /// Feature: remote-desktop-client, Property 6: 设备 ID 唯一性
+    /// Feature: cec-remote, Property 6: 设备 ID 唯一性
     /// Device info should serialize and deserialize correctly
     /// Validates: Requirements 5.1
     #[test]
@@ -234,7 +234,7 @@ proptest! {
         prop_assert_eq!(parsed.capabilities.input_control, device_info.capabilities.input_control);
     }
 
-    /// Feature: remote-desktop-client, Property 5: 信令交换性能
+    /// Feature: cec-remote, Property 5: 信令交换性能
     /// Register messages should serialize and deserialize correctly
     /// Validates: Requirements 4.5
     #[test]
@@ -254,7 +254,7 @@ proptest! {
         }
     }
 
-    /// Feature: remote-desktop-client, Property 5: 信令交换性能
+    /// Feature: cec-remote, Property 5: 信令交换性能
     /// Connection request messages should serialize and deserialize correctly
     /// Validates: Requirements 4.5
     #[test]

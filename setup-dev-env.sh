@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# 跨平台远程桌面客户端开发环境一键部署脚本
+# 工一远程客户端开发环境一键部署脚本
 # 适用于 Ubuntu 24.04 LTS
 # 作者: Remote Desktop Team
 # 版本: 1.0.0
@@ -948,7 +948,7 @@ EOF
 
 # 主函数
 main() {
-    log_info "开始安装跨平台远程桌面客户端开发环境..."
+    log_info "开始安装工一远程客户端开发环境..."
     log_info "目标系统: Ubuntu 24.04"
     
     check_root

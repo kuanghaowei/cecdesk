@@ -88,7 +88,7 @@ void main() {
 
         final exported = monitoringService.exportLogs();
 
-        expect(exported, contains('远程桌面客户端日志导出'));
+        expect(exported, contains('工一远程客户端日志导出'));
         expect(exported, contains('Connected to device'));
         expect(exported, contains('High latency detected'));
         expect(exported, contains('[INFO]'));

@@ -6,7 +6,7 @@ import 'package:remote_desktop_client/src/core/services/consent_service.dart';
 import 'package:remote_desktop_client/src/core/services/secure_storage_service.dart';
 
 /// Property-based tests for ConsentService
-/// Feature: remote-desktop-client
+/// Feature: cec-remote
 /// Validates: Requirements 17b.1, 17b.4, 17b.5, 17b.7
 
 void main() {
@@ -30,7 +30,7 @@ void main() {
     /// the privacy policy and license agreement consent interface
     /// **Validates: Requirement 17b.1**
     test('Property 45: First launch shows consent requirement', () async {
-      // Feature: remote-desktop-client, Property 45: First launch consent requirement
+      // Feature: cec-remote, Property 45: First launch consent requirement
       
       const iterations = 100;
       final random = Random();
@@ -56,7 +56,7 @@ void main() {
     /// prevent them from using client features
     /// **Validates: Requirement 17b.4**
     test('Property 46: Consent required to use app', () async {
-      // Feature: remote-desktop-client, Property 46: Consent required to use app
+      // Feature: cec-remote, Property 46: Consent required to use app
       
       const iterations = 100;
       final random = Random();
@@ -99,7 +99,7 @@ void main() {
     /// status and consent time
     /// **Validates: Requirement 17b.5**
     test('Property 47: Consent state recording', () async {
-      // Feature: remote-desktop-client, Property 47: Consent state recording
+      // Feature: cec-remote, Property 47: Consent state recording
       
       const iterations = 100;
       
@@ -157,7 +157,7 @@ void main() {
     /// interface on next launch
     /// **Validates: Requirement 17b.7**
     test('Property 48: Policy update requires re-consent', () async {
-      // Feature: remote-desktop-client, Property 48: Policy update requires re-consent
+      // Feature: cec-remote, Property 48: Policy update requires re-consent
       
       const iterations = 100;
       final random = Random();
@@ -214,7 +214,7 @@ void main() {
 
     /// Additional property: Consent persistence across service instances
     test('Consent persists across service instances', () async {
-      // Feature: remote-desktop-client, Property: Consent persistence
+      // Feature: cec-remote, Property: Consent persistence
       
       const iterations = 50;
       
@@ -250,7 +250,7 @@ void main() {
 
     /// Additional property: Clear consent removes all consent data
     test('Clear consent removes all data', () async {
-      // Feature: remote-desktop-client, Property: Clear consent
+      // Feature: cec-remote, Property: Clear consent
       
       const iterations = 50;
       

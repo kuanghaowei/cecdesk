@@ -1,8 +1,8 @@
-# 跨平台远程桌面客户端开发环境文档
+# 工一远程客户端开发环境文档
 
 ## 概述
 
-本文档描述了跨平台远程桌面客户端项目的完整开发环境配置和使用方法。开发环境支持 Rust 核心引擎、Flutter 统一客户端、微信小程序以及完整的 CI/CD 流水线。
+本文档描述了工一远程客户端项目的完整开发环境配置和使用方法。开发环境支持 Rust 核心引擎、Flutter 统一客户端、微信小程序以及完整的 CI/CD 流水线。
 
 ## 系统要求
 
@@ -17,7 +17,7 @@
 
 ```bash
 # 下载安装脚本
-wget https://raw.githubusercontent.com/your-repo/remote-desktop-client/main/setup-dev-env.sh
+wget https://raw.githubusercontent.com/your-repo/cec-remote/main/setup-dev-env.sh
 
 # 给脚本执行权限
 chmod +x setup-dev-env.sh
@@ -269,7 +269,7 @@ workspace/
 ### 项目目录结构
 
 ```
-remote-desktop-client/
+cec-remote/
 ├── Cargo.toml                    # Rust 工作区配置
 ├── rust-core/                   # Rust 核心引擎
 │   ├── Cargo.toml

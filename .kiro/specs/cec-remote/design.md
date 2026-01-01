@@ -1,8 +1,8 @@
-# 设计文档 - 跨平台远程桌面客户端
+# 设计文档 - 工一远程客户端
 
 ## 概述
 
-跨平台远程桌面客户端是一个基于现代 WebRTC 技术的远程控制解决方案，采用点对点架构实现低延迟、高质量的远程桌面体验。系统支持多平台部署（Windows、macOS、Linux、iOS、Android、鸿蒙、Web、微信小程序），通过模块化设计实现代码复用和平台特定优化。
+工一远程客户端是一个基于现代 WebRTC 技术的远程控制解决方案，采用点对点架构实现低延迟、高质量的远程桌面体验。系统支持多平台部署（Windows、macOS、Linux、iOS、Android、鸿蒙、Web、微信小程序），通过模块化设计实现代码复用和平台特定优化。
 
 ### 核心特性
 
@@ -1065,7 +1065,7 @@ enum Platform {
 **测试标记格式**:
 每个属性测试必须使用以下标记格式引用设计文档属性：
 ```
-Feature: remote-desktop-client, Property {number}: {property_text}
+Feature: cec-remote, Property {number}: {property_text}
 ```
 
 ### 关键测试场景

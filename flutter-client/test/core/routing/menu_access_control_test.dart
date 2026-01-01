@@ -6,7 +6,7 @@ import 'package:remote_desktop_client/src/core/services/authentication_service.d
 import 'package:remote_desktop_client/src/core/services/secure_storage_service.dart';
 
 /// Property-based tests for Menu Access Control
-/// Feature: remote-desktop-client
+/// Feature: cec-remote
 /// Validates: Requirement 19.2
 
 void main() {
@@ -29,7 +29,7 @@ void main() {
     /// features, the system should guide the user to complete login first
     /// **Validates: Requirement 19.2**
     test('Property 35: Unauthenticated access control', () async {
-      // Feature: remote-desktop-client, Property 35: Unauthenticated access control
+      // Feature: cec-remote, Property 35: Unauthenticated access control
       
       const iterations = 100;
       final random = Random();
@@ -70,7 +70,7 @@ void main() {
 
     /// Property: Authenticated users can access protected routes
     test('Authenticated users can access protected routes', () async {
-      // Feature: remote-desktop-client, Property: Authenticated access
+      // Feature: cec-remote, Property: Authenticated access
       
       const iterations = 50;
       
@@ -107,7 +107,7 @@ void main() {
 
     /// Property: Session expiration affects access control
     test('Session expiration affects access control', () async {
-      // Feature: remote-desktop-client, Property: Session expiration access control
+      // Feature: cec-remote, Property: Session expiration access control
       
       const iterations = 50;
       
@@ -141,7 +141,7 @@ void main() {
 
     /// Property: Login state transitions correctly
     test('Login state transitions correctly', () async {
-      // Feature: remote-desktop-client, Property: Login state transitions
+      // Feature: cec-remote, Property: Login state transitions
       
       const iterations = 50;
       

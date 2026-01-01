@@ -1,6 +1,6 @@
 //! Property-based tests for Network module
 //!
-//! Feature: remote-desktop-client
+//! Feature: cec-remote
 //! Property       - Network protocol fallback mechanism
 //! Property 12: 网络质量警告 - Network quality warning
 //! Validates: Requirements 3.3, 11.6

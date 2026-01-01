@@ -441,7 +441,7 @@ Page({
   showAbout() {
     wx.showModal({
       title: '关于应用',
-      content: `跨平台远程桌面客户端\n版本: ${this.data.appVersion}\n设备ID: ${this.data.deviceId}`,
+      content: `工一远程客户端\n版本: ${this.data.appVersion}\n设备ID: ${this.data.deviceId}`,
       showCancel: false
     });
   },
