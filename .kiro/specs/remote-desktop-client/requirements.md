@@ -20,6 +20,20 @@
 - **Web_Client**: Web 浏览器客户端，通过浏览器访问远程桌面
 - **WeChat_MiniProgram**: 微信小程序客户端，在微信生态内提供远程桌面功能
 - **HarmonyOS_Client**: 鸿蒙系统原生客户端，适配华为鸿蒙操作系统
+- **QR_Code**: 二维码，用于扫码登录的图形码
+- **Mobile_App**: 移动端应用，用于扫码授权登录
+- **SMS_Verification**: 短信验证码，用于手机号码登录验证
+- **WeChat_OAuth**: 微信开放平台授权，用于微信扫码登录
+- **Login_Session**: 登录会话，用户认证后的会话状态
+- **Desktop_Client**: 桌面端客户端，运行在 Windows/macOS/Linux 上的客户端
+- **Device_Code**: 设备代码，9位数字的设备唯一标识
+- **Connection_Password**: 连接密码，9位数字字符组合的临时访问密码
+- **Device_List**: 设备列表，记录用户登录过的设备历史
+- **Screen_Lock_Password**: 锁屏密码，本机系统的锁屏密码用于安全验证
+- **One_Click_Login**: 一键登录，通过运营商 SDK 自动获取手机号码的登录方式
+- **Privacy_Policy**: 用户隐私协议，说明用户数据收集和使用方式的法律文件
+- **License_Agreement**: 软件许可协议，说明软件使用条款和限制的法律文件
+- **User_Consent**: 用户同意状态，记录用户是否同意协议及同意时间
 
 ## 需求
 
@@ -243,3 +257,121 @@
 6. WHEN 应用在后台运行，THEN THE HarmonyOS_Client SHALL 遵循鸿蒙系统的后台任务管理规范
 7. WHERE 鸿蒙系统分布式能力可用，THE HarmonyOS_Client SHALL 支持跨设备协同和流转功能
 8. WHEN 系统资源紧张，THEN THE HarmonyOS_Client SHALL 配合鸿蒙系统的资源调度机制优化性能
+
+### 需求 17: 桌面端多方式登录认证
+
+**用户故事:** 作为桌面端用户，我希望能够通过多种方式登录系统，以便选择最方便的认证方式。
+
+#### 验收标准
+
+1. WHEN 用户在 Desktop_Client 选择 App 扫码登录，THEN THE System SHALL 生成包含登录会话信息的 QR_Code
+2. WHEN QR_Code 生成后，THEN THE System SHALL 在界面显示二维码并提示用户使用 Mobile_App 扫描
+3. WHEN Mobile_App 扫描 QR_Code，THEN THE Mobile_App SHALL 显示登录确认界面
+4. WHEN 用户在 Mobile_App 确认登录，THEN THE Desktop_Client SHALL 在 3 秒内完成登录并进入主界面
+5. IF QR_Code 超过 5 分钟未被扫描，THEN THE System SHALL 使该二维码过期并提示用户刷新
+6. WHEN 用户在 Desktop_Client 选择微信扫码登录，THEN THE System SHALL 调用 WeChat_OAuth 生成微信登录二维码
+7. WHEN 用户使用微信扫描登录二维码，THEN THE System SHALL 通过 WeChat_OAuth 获取用户授权信息
+8. WHEN 微信授权成功，THEN THE Desktop_Client SHALL 完成登录并关联用户微信账号
+9. IF 微信授权失败或用户取消，THEN THE System SHALL 显示友好的错误提示并允许重试
+10. WHEN 用户在 Desktop_Client 选择手机号码登录，THEN THE System SHALL 显示手机号码输入界面
+11. WHEN 用户输入有效手机号码并请求验证码，THEN THE System SHALL 发送 SMS_Verification 到该手机号码
+12. WHEN SMS_Verification 发送成功，THEN THE System SHALL 在界面显示验证码输入框并开始 60 秒倒计时
+13. WHEN 用户输入正确的 SMS_Verification，THEN THE Desktop_Client SHALL 完成登录并建立 Login_Session
+14. IF SMS_Verification 输入错误超过 5 次，THEN THE System SHALL 锁定该手机号码 30 分钟
+15. IF SMS_Verification 超过 5 分钟未使用，THEN THE System SHALL 使该验证码过期
+16. WHEN 登录成功，THEN THE System SHALL 创建 Login_Session 并安全存储登录凭证
+17. WHEN Login_Session 建立，THEN THE System SHALL 支持记住登录状态以便下次自动登录
+18. WHEN 用户选择退出登录，THEN THE System SHALL 清除本地 Login_Session 并返回登录界面
+
+### 需求 17a: 移动端登录认证
+
+**用户故事:** 作为移动端用户，我希望能够通过便捷的方式登录系统，以便快速开始使用远程控制功能。
+
+#### 验收标准
+
+1. WHEN 用户在移动端选择微信一键登录，THEN THE System SHALL 调用微信 SDK 获取用户授权
+2. WHEN 微信授权成功，THEN THE System SHALL 完成登录并关联用户微信账号
+3. IF 微信授权失败或用户取消，THEN THE System SHALL 显示友好的错误提示并允许重试
+4. WHEN 用户在移动端选择手机号码一键登录，THEN THE System SHALL 调用运营商一键登录 SDK
+5. WHEN 运营商一键登录成功，THEN THE System SHALL 自动获取手机号码并完成登录
+6. IF 运营商一键登录失败，THEN THE System SHALL 回退到短信验证码登录方式
+7. WHEN 移动端登录成功，THEN THE System SHALL 创建 Login_Session 并安全存储登录凭证
+
+### 需求 17b: 用户协议和隐私政策
+
+**用户故事:** 作为用户，我希望在首次使用时了解软件的隐私政策和使用条款，以便做出知情同意。
+
+#### 验收标准
+
+1. WHEN 用户首次启动客户端，THEN THE System SHALL 显示用户隐私协议和软件许可协议同意界面
+2. WHEN 显示协议同意界面，THEN THE System SHALL 提供用户隐私协议的完整内容链接
+3. WHEN 显示协议同意界面，THEN THE System SHALL 提供软件许可协议的完整内容链接
+4. WHEN 用户未同意协议，THEN THE System SHALL 禁止用户继续使用客户端功能
+5. WHEN 用户点击同意按钮，THEN THE System SHALL 记录用户同意状态和同意时间
+6. WHEN 用户已同意协议，THEN THE System SHALL 在后续启动时不再显示协议同意界面
+7. WHEN 协议内容更新，THEN THE System SHALL 在用户下次启动时重新显示协议同意界面
+8. WHEN 用户在设置中查看协议，THEN THE System SHALL 提供查看已同意协议的入口
+
+### 需求 18: 登录安全保护
+
+**用户故事:** 作为用户，我希望登录过程是安全的，以便保护我的账户不被盗用。
+
+#### 验收标准
+
+1. WHEN 传输登录凭证，THEN THE System SHALL 使用 TLS 1.3 加密所有登录相关通信
+2. WHEN 存储登录凭证，THEN THE System SHALL 使用平台安全存储机制（如 Keychain、Credential Manager）
+3. WHEN 检测到异常登录行为，THEN THE System SHALL 触发额外的安全验证
+4. WHEN 同一账号在新设备登录，THEN THE System SHALL 通知用户并允许远程登出其他设备
+5. WHILE Login_Session 有效期间，THE System SHALL 定期刷新会话令牌以保持安全性
+6. WHEN Login_Session 超过 30 天未活动，THEN THE System SHALL 使该会话过期并要求重新登录
+7. WHEN 用户连续登录失败 10 次，THEN THE System SHALL 临时锁定账户并发送安全通知
+
+### 需求 19: 客户端主菜单结构
+
+**用户故事:** 作为用户，我希望客户端有清晰的菜单结构，以便快速访问各项功能。
+
+#### 验收标准
+
+1. WHEN 用户打开客户端，THEN THE System SHALL 显示包含登录、远程控制、设备列表、设置四个主菜单项
+2. WHEN 用户未登录时点击远程控制或设备列表，THEN THE System SHALL 引导用户先完成登录
+3. WHEN 用户点击登录菜单，THEN THE System SHALL 显示登录界面（支持 App 扫码、微信扫码、手机号码三种方式）
+4. WHEN 用户点击远程控制菜单，THEN THE System SHALL 显示远程控制主界面
+5. WHEN 用户点击设备列表菜单，THEN THE System SHALL 显示用户登录过的设备历史列表
+6. WHEN 用户点击设置菜单，THEN THE System SHALL 显示系统设置界面
+7. WHEN 用户已登录，THEN THE System SHALL 在菜单区域显示当前登录用户信息
+
+### 需求 20: 远程控制主界面
+
+**用户故事:** 作为用户，我希望远程控制主界面提供完整的控制选项，以便管理本设备的远程访问和连接其他设备。
+
+#### 验收标准
+
+1. WHEN 用户进入远程控制主界面，THEN THE System SHALL 显示"允许控制本设备"开关
+2. WHEN "允许控制本设备"开关关闭，THEN THE System SHALL 拒绝所有远程连接请求
+3. WHEN "允许控制本设备"开关开启，THEN THE System SHALL 显示本设备的 Device_Code（9位数字）
+4. WHEN "允许控制本设备"开关开启，THEN THE System SHALL 显示当前的 Connection_Password（9位数字字符组合）
+5. WHEN 用户点击 Connection_Password 旁的刷新按钮，THEN THE System SHALL 生成新的 Connection_Password
+6. WHEN 用户进入远程控制主界面，THEN THE System SHALL 显示"控制本设备需校验本机锁屏密码"选项
+7. WHERE "控制本设备需校验本机锁屏密码"选项启用，THE System SHALL 在接受远程连接前要求输入 Screen_Lock_Password
+8. WHEN 用户进入远程控制主界面，THEN THE System SHALL 显示远程控制设置框（包含目标设备代码和密码输入框）
+9. WHEN 用户在远程控制设置框输入目标 Device_Code 和 Connection_Password，THEN THE System SHALL 启用连接按钮
+10. WHEN 用户点击连接按钮，THEN THE System SHALL 尝试连接目标设备并显示连接状态
+11. IF 连接目标设备失败，THEN THE System SHALL 显示失败原因并允许重试
+12. WHEN 连接成功，THEN THE System SHALL 进入远程桌面查看界面
+
+### 需求 21: 设备列表管理
+
+**用户故事:** 作为用户，我希望能够管理我登录过的设备，以便快速连接常用设备或移除不再使用的设备。
+
+#### 验收标准
+
+1. WHEN 用户进入设备列表界面，THEN THE System SHALL 显示用户登录过的所有设备
+2. WHEN 显示设备列表，THEN THE System SHALL 显示每个设备的名称、Device_Code、最后在线时间和在线状态
+3. WHEN 设备当前在线，THEN THE System SHALL 在设备项显示绿色在线标识
+4. WHEN 设备当前离线，THEN THE System SHALL 在设备项显示灰色离线标识
+5. WHEN 用户点击在线设备，THEN THE System SHALL 显示快速连接选项
+6. WHEN 用户选择快速连接，THEN THE System SHALL 自动填充 Device_Code 并跳转到远程控制界面
+7. WHEN 用户长按或右键点击设备项，THEN THE System SHALL 显示设备管理菜单（重命名、删除、查看详情）
+8. WHEN 用户选择删除设备，THEN THE System SHALL 从设备列表中移除该设备记录
+9. WHEN 用户选择重命名设备，THEN THE System SHALL 允许用户自定义设备显示名称
+10. WHEN 新设备首次连接成功，THEN THE System SHALL 自动将该设备添加到设备列表

@@ -228,7 +228,143 @@ interface FileTransfer {
 }
 ```
 
-#### 6. 会话管理器 (SessionManager)
+#### 6. 认证服务 (AuthenticationService)
+
+处理多种登录认证方式：
+
+```dart
+// Flutter/Dart 认证服务接口
+abstract class AuthenticationService {
+  // App 扫码登录
+  Future<QRCodeSession> generateQRCode();
+  Stream<QRCodeStatus> watchQRCodeStatus(String sessionId);
+  Future<LoginResult> confirmQRCodeLogin(String sessionId, String userId);
+  
+  // 微信扫码登录
+  Future<WeChatQRCode> generateWeChatQRCode();
+  Future<LoginResult> handleWeChatCallback(String code);
+  
+  // 手机号码登录
+  Future<void> sendSMSVerificationCode(String phoneNumber);
+  Future<LoginResult> verifySMSCode(String phoneNumber, String code);
+  
+  // 会话管理
+  Future<LoginSession> getCurrentSession();
+  Future<void> refreshSession();
+  Future<void> logout();
+  
+  // 安全存储
+  Future<void> saveCredentials(LoginCredentials credentials);
+  Future<LoginCredentials?> loadCredentials();
+  Future<void> clearCredentials();
+  
+  // 事件回调
+  Stream<AuthenticationState> get onAuthStateChange;
+  
+  // 移动端一键登录
+  Future<LoginResult> wechatOneClickLogin(); // 微信一键登录
+  Future<LoginResult> carrierOneClickLogin(); // 运营商一键登录
+  
+  // 协议同意管理
+  Future<bool> hasUserConsent();
+  Future<void> recordUserConsent(ConsentInfo consent);
+  Future<ConsentInfo?> getConsentInfo();
+  Future<bool> needsConsentUpdate(String currentVersion);
+}
+
+// 用户同意信息
+class ConsentInfo {
+  final bool privacyPolicyAccepted;
+  final bool licenseAgreementAccepted;
+  final DateTime consentTime;
+  final String privacyPolicyVersion;
+  final String licenseAgreementVersion;
+}
+
+// 二维码会话
+class QRCodeSession {
+  final String sessionId;
+  final String qrCodeData;
+  final DateTime expiresAt;
+  final QRCodeStatus status;
+}
+
+// 登录结果
+class LoginResult {
+  final bool success;
+  final String? userId;
+  final String? accessToken;
+  final String? refreshToken;
+  final String? errorMessage;
+}
+
+// 登录凭证
+class LoginCredentials {
+  final String userId;
+  final String accessToken;
+  final String refreshToken;
+  final DateTime expiresAt;
+  final LoginMethod method;
+}
+
+enum LoginMethod {
+  appQRCode,
+  wechatQRCode,
+  phoneNumber,
+}
+```
+
+#### 7. 设备管理服务 (DeviceManagementService)
+
+管理设备列表和设备信息：
+
+```dart
+abstract class DeviceManagementService {
+  // 设备代码和密码
+  Future<String> generateDeviceCode(); // 生成9位数字设备代码
+  Future<String> generateConnectionPassword(); // 生成9位数字字符组合密码
+  Future<void> refreshConnectionPassword();
+  
+  // 设备列表管理
+  Future<List<DeviceRecord>> getDeviceList();
+  Future<void> addDevice(DeviceRecord device);
+  Future<void> removeDevice(String deviceId);
+  Future<void> renameDevice(String deviceId, String newName);
+  
+  // 设备状态
+  Future<DeviceStatus> getDeviceStatus(String deviceId);
+  Stream<DeviceStatus> watchDeviceStatus(String deviceId);
+  
+  // 本设备控制
+  Future<void> setAllowRemoteControl(bool allow);
+  Future<bool> getAllowRemoteControl();
+  Future<void> setRequireScreenLockPassword(bool require);
+  Future<bool> getRequireScreenLockPassword();
+  
+  // 锁屏密码验证
+  Future<bool> verifyScreenLockPassword(String password);
+}
+
+// 设备记录
+class DeviceRecord {
+  final String deviceId;
+  final String deviceCode;
+  String displayName;
+  final String platform;
+  final DateTime lastOnlineTime;
+  final bool isOnline;
+}
+
+// 设备状态
+class DeviceStatus {
+  final String deviceId;
+  final bool isOnline;
+  final bool allowRemoteControl;
+  final DateTime lastSeen;
+}
+```
+
+#### 8. 会话管理器 (SessionManager)
 
 管理远程控制会话：
 
@@ -356,6 +492,168 @@ abstract class HarmonyOSAdapter {
 
 ## 数据模型
 
+### UI 架构设计
+
+#### 客户端主菜单结构
+
+```mermaid
+graph TB
+    subgraph "主菜单"
+        Login[登录]
+        RemoteControl[远程控制]
+        DeviceList[设备列表]
+        Settings[设置]
+    end
+    
+    subgraph "登录界面"
+        AppQR[App扫码登录]
+        WeChatQR[微信扫码登录]
+        PhoneLogin[手机号码登录]
+    end
+    
+    subgraph "远程控制主界面"
+        AllowControl[允许控制本设备开关]
+        DeviceCode[设备代码 - 9位数字]
+        ConnPassword[连接密码 - 9位数字字符]
+        LockPwdOption[锁屏密码校验选项]
+        ConnectBox[远程控制设置框]
+        ConnectBtn[连接按钮]
+    end
+    
+    subgraph "设备列表界面"
+        DeviceItems[设备列表项]
+        QuickConnect[快速连接]
+        DeviceManage[设备管理]
+    end
+    
+    Login --> AppQR
+    Login --> WeChatQR
+    Login --> PhoneLogin
+    
+    RemoteControl --> AllowControl
+    RemoteControl --> DeviceCode
+    RemoteControl --> ConnPassword
+    RemoteControl --> LockPwdOption
+    RemoteControl --> ConnectBox
+    RemoteControl --> ConnectBtn
+    
+    DeviceList --> DeviceItems
+    DeviceItems --> QuickConnect
+    DeviceItems --> DeviceManage
+```
+
+#### 登录流程设计
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Client as 客户端
+    participant Server as 认证服务器
+
+    Note over User,Server: 首次启动协议同意流程
+    User->>Client: 首次启动客户端
+    Client->>Client: 检查用户同意状态
+    alt 未同意协议
+        Client->>User: 显示协议同意界面
+        User->>Client: 查看隐私协议和许可协议
+        User->>Client: 点击同意按钮
+        Client->>Client: 记录同意状态和时间
+    end
+    Client->>User: 进入登录界面
+```
+
+```mermaid
+sequenceDiagram
+    participant User as 用户
+    participant Desktop as 桌面客户端
+    participant Server as 认证服务器
+    participant Mobile as 移动端App
+    participant WeChat as 微信服务
+    participant Carrier as 运营商服务
+
+    Note over User,WeChat: App扫码登录流程
+    User->>Desktop: 选择App扫码登录
+    Desktop->>Server: 请求生成二维码
+    Server-->>Desktop: 返回二维码数据和会话ID
+    Desktop->>User: 显示二维码
+    User->>Mobile: 使用App扫描二维码
+    Mobile->>Server: 发送扫描确认
+    Server-->>Desktop: 推送扫描状态
+    User->>Mobile: 确认登录
+    Mobile->>Server: 发送登录确认
+    Server-->>Desktop: 推送登录成功
+    Desktop->>User: 进入主界面
+
+    Note over User,WeChat: 微信扫码登录流程
+    User->>Desktop: 选择微信扫码登录
+    Desktop->>WeChat: 请求微信OAuth二维码
+    WeChat-->>Desktop: 返回微信登录二维码
+    Desktop->>User: 显示微信二维码
+    User->>WeChat: 使用微信扫描
+    WeChat->>Server: 回调授权信息
+    Server-->>Desktop: 返回登录结果
+    Desktop->>User: 进入主界面
+
+    Note over User,WeChat: 移动端微信一键登录流程
+    User->>Mobile: 选择微信一键登录
+    Mobile->>WeChat: 调用微信SDK授权
+    WeChat-->>Mobile: 返回授权信息
+    Mobile->>Server: 发送授权信息
+    Server-->>Mobile: 返回登录结果
+    Mobile->>User: 进入主界面
+
+    Note over User,WeChat: 移动端手机号码一键登录流程
+    User->>Mobile: 选择手机号码一键登录
+    Mobile->>Carrier: 调用运营商SDK
+    Carrier-->>Mobile: 返回手机号码Token
+    Mobile->>Server: 发送Token验证
+    Server-->>Mobile: 返回登录结果
+    alt 一键登录失败
+        Mobile->>User: 回退到短信验证码登录
+    end
+    Mobile->>User: 进入主界面
+
+    Note over User,WeChat: 手机号码登录流程
+    User->>Desktop: 选择手机号码登录
+    User->>Desktop: 输入手机号码
+    Desktop->>Server: 请求发送验证码
+    Server->>User: 发送短信验证码
+    User->>Desktop: 输入验证码
+    Desktop->>Server: 验证验证码
+    Server-->>Desktop: 返回登录结果
+    Desktop->>User: 进入主界面
+```
+
+#### 远程控制连接流程
+
+```mermaid
+sequenceDiagram
+    participant Controller as 控制端
+    participant Server as 信令服务器
+    participant Controlled as 被控端
+
+    Controller->>Controller: 输入目标设备代码和密码
+    Controller->>Server: 发送连接请求
+    Server->>Controlled: 转发连接请求
+    
+    alt 需要锁屏密码验证
+        Controlled->>Controlled: 提示输入锁屏密码
+        Controlled->>Controlled: 验证锁屏密码
+    end
+    
+    Controlled->>Server: 接受连接
+    Server->>Controller: 转发接受响应
+    
+    Note over Controller,Controlled: WebRTC 连接建立
+    Controller->>Server: 发送 SDP Offer
+    Server->>Controlled: 转发 SDP Offer
+    Controlled->>Server: 发送 SDP Answer
+    Server->>Controller: 转发 SDP Answer
+    
+    Controller->>Controlled: 建立P2P连接
+    Controller->>Controller: 进入远程桌面界面
+```
+
 ### 核心数据结构
 
 ```typescript
@@ -419,6 +717,50 @@ interface HarmonyOSInfo {
   multiWindowSupport: boolean
   deviceType: HarmonyDeviceType // 手机、平板、智慧屏等
   cooperationDevices: DistributedDevice[] // 可协同设备列表
+}
+
+// 登录会话数据
+interface LoginSession {
+  userId: string
+  accessToken: string
+  refreshToken: string
+  expiresAt: Date
+  loginMethod: LoginMethod
+  deviceId: string
+}
+
+// 二维码状态
+enum QRCodeStatus {
+  Pending = "pending",       // 等待扫描
+  Scanned = "scanned",       // 已扫描，等待确认
+  Confirmed = "confirmed",   // 已确认
+  Expired = "expired",       // 已过期
+  Cancelled = "cancelled"    // 已取消
+}
+
+// 登录方式
+enum LoginMethod {
+  AppQRCode = "app_qrcode",
+  WeChatQRCode = "wechat_qrcode",
+  PhoneNumber = "phone_number"
+}
+
+// 设备记录
+interface DeviceRecord {
+  deviceId: string
+  deviceCode: string          // 9位数字设备代码
+  displayName: string
+  platform: Platform
+  lastOnlineTime: Date
+  isOnline: boolean
+}
+
+// 远程控制设置
+interface RemoteControlSettings {
+  allowRemoteControl: boolean
+  deviceCode: string          // 9位数字
+  connectionPassword: string  // 9位数字字符组合
+  requireScreenLockPassword: boolean
 }
 
 // 平台枚举扩展
@@ -536,7 +878,125 @@ enum Platform {
 *对于任何*具有分布式能力的鸿蒙系统，系统应该支持跨设备协同和流转功能
 **验证: 需求 16.7**
 
+### 属性 25: 二维码会话信息完整性
+*对于任何*生成的 App 扫码登录二维码，二维码数据应该包含有效的会话 ID 和过期时间信息
+**验证: 需求 17.1**
+
+### 属性 26: 二维码过期机制
+*对于任何*生成的二维码（App 扫码或微信扫码），系统应该在 5 分钟后使该二维码过期
+**验证: 需求 17.5**
+
+### 属性 27: 短信验证码过期机制
+*对于任何*发送的短信验证码，系统应该在 5 分钟后使该验证码过期
+**验证: 需求 17.15**
+
+### 属性 28: 验证码错误锁定机制
+*对于任何*手机号码，当验证码输入错误超过 5 次时，系统应该锁定该手机号码 30 分钟
+**验证: 需求 17.14**
+
+### 属性 29: 登录会话创建和存储
+*对于任何*成功的登录操作，系统应该创建 Login_Session 并使用平台安全存储机制存储登录凭证
+**验证: 需求 17.16, 18.2**
+
+### 属性 30: 登出会话清除
+*对于任何*用户登出操作，系统应该清除本地 Login_Session 和所有登录凭证
+**验证: 需求 17.18**
+
+### 属性 31: 登录凭证传输加密
+*对于任何*登录凭证传输，系统应该使用 TLS 1.3 加密所有登录相关通信
+**验证: 需求 18.1**
+
+### 属性 32: 会话令牌定期刷新
+*对于任何*有效的 Login_Session，系统应该定期刷新会话令牌以保持安全性
+**验证: 需求 18.5**
+
+### 属性 33: 会话过期机制
+*对于任何* Login_Session，当超过 30 天未活动时，系统应该使该会话过期
+**验证: 需求 18.6**
+
+### 属性 34: 账户锁定机制
+*对于任何*用户账户，当连续登录失败 10 次时，系统应该临时锁定该账户
+**验证: 需求 18.7**
+
+### 属性 35: 未登录访问控制
+*对于任何*未登录状态的用户，当访问远程控制或设备列表功能时，系统应该引导用户先完成登录
+**验证: 需求 19.2**
+
+### 属性 36: 远程控制开关拒绝连接
+*对于任何*"允许控制本设备"开关关闭的设备，系统应该拒绝所有远程连接请求
+**验证: 需求 20.2**
+
+### 属性 37: 设备代码格式
+*对于任何*生成的设备代码，应该是 9 位数字格式
+**验证: 需求 20.3**
+
+### 属性 38: 连接密码格式
+*对于任何*生成的连接密码，应该是 9 位数字字符组合格式
+**验证: 需求 20.4**
+
+### 属性 39: 连接密码刷新
+*对于任何*连接密码刷新操作，系统应该生成新的不同于旧密码的连接密码
+**验证: 需求 20.5**
+
+### 属性 40: 锁屏密码验证
+*对于任何*启用了锁屏密码校验的设备，在接受远程连接前应该要求输入正确的锁屏密码
+**验证: 需求 20.7**
+
+### 属性 41: 设备列表持久化
+*对于任何*新设备首次连接成功，系统应该自动将该设备添加到设备列表
+**验证: 需求 21.10**
+
+### 属性 42: 设备删除
+*对于任何*设备删除操作，系统应该从设备列表中移除该设备记录
+**验证: 需求 21.8**
+
+### 属性 43: 移动端微信一键登录
+*对于任何*移动端微信一键登录操作，系统应该调用微信 SDK 获取用户授权并完成登录
+**验证: 需求 17a.1, 17a.2**
+
+### 属性 44: 移动端运营商一键登录回退
+*对于任何*运营商一键登录失败的情况，系统应该自动回退到短信验证码登录方式
+**验证: 需求 17a.6**
+
+### 属性 45: 首次启动协议同意
+*对于任何*首次启动客户端的用户，系统应该显示用户隐私协议和软件许可协议同意界面
+**验证: 需求 17b.1**
+
+### 属性 46: 未同意协议禁止使用
+*对于任何*未同意协议的用户，系统应该禁止用户继续使用客户端功能
+**验证: 需求 17b.4**
+
+### 属性 47: 协议同意状态记录
+*对于任何*用户同意协议的操作，系统应该记录用户同意状态和同意时间
+**验证: 需求 17b.5**
+
+### 属性 48: 协议更新重新同意
+*对于任何*协议内容更新的情况，系统应该在用户下次启动时重新显示协议同意界面
+**验证: 需求 17b.7**
+
 ## 错误处理
+
+### 登录认证错误处理
+
+1. **二维码扫码登录失败**
+   - 二维码过期自动刷新提示
+   - 扫码超时友好提示
+   - 网络异常重试机制
+
+2. **微信授权失败**
+   - 用户取消授权提示
+   - 微信服务异常提示
+   - 重新授权引导
+
+3. **手机号码登录失败**
+   - 验证码发送失败重试
+   - 验证码错误次数限制提示
+   - 手机号码锁定提示
+
+4. **会话管理错误**
+   - 会话过期自动跳转登录
+   - 令牌刷新失败处理
+   - 多设备登录冲突处理
 
 ### 网络错误处理
 
