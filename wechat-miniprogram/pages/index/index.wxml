@@ -1,0 +1,107 @@
+<!--pages/index/index.wxml-->
+<view class="container">
+  <!-- 连接卡片 -->
+  <view class="card">
+    <view class="card-title">连接远程设备</view>
+    
+    <view class="input-group">
+      <view class="input-label">设备ID</view>
+      <input 
+        class="input-field" 
+        placeholder="请输入远程设备ID" 
+        value="{{deviceId}}"
+        bindinput="onDeviceIdInput"
+        maxlength="50"
+      />
+    </view>
+    
+    <view class="input-group">
+      <view class="input-label">访问码（可选）</view>
+      <input 
+        class="input-field" 
+        placeholder="如需要请输入访问码" 
+        value="{{accessCode}}"
+        bindinput="onAccessCodeInput"
+        maxlength="20"
+      />
+    </view>
+    
+    <view class="flex" style="gap: 16rpx;">
+      <button 
+        class="btn-primary flex-1" 
+        bindtap="connectToDevice"
+        disabled="{{isConnecting}}"
+      >
+        <text wx:if="{{!isConnecting}}">连接</text>
+        <text wx:else>连接中...</text>
+      </button>
+      
+      <button class="btn-secondary" bindtap="scanQRCode">
+        扫码
+      </button>
+    </view>
+  </view>
+
+  <!-- 本机信息卡片 -->
+  <view class="card">
+    <view class="card-title">本机信息</view>
+    
+    <view class="list-item">
+      <view class="list-item-content">
+        <view class="list-item-title">设备ID</view>
+        <view class="list-item-subtitle">{{currentDeviceId}}</view>
+      </view>
+      <view class="list-item-action" bindtap="copyDeviceId">
+        复制
+      </view>
+    </view>
+    
+    <view class="list-item">
+      <view class="list-item-content">
+        <view class="list-item-title">状态</view>
+        <view class="status-indicator {{isOnline ? 'status-online' : 'status-offline'}}">
+          {{isOnline ? '在线' : '离线'}}
+        </view>
+      </view>
+    </view>
+    
+    <button class="btn-secondary" bindtap="generateAccessCode" style="margin-top: 24rpx;">
+      生成访问码
+    </button>
+  </view>
+
+  <!-- 连接历史 -->
+  <view class="card" wx:if="{{connectionHistory.length > 0}}">
+    <view class="card-title">最近连接</view>
+    
+    <view 
+      class="list-item" 
+      wx:for="{{connectionHistory}}" 
+      wx:key="deviceId"
+      bindtap="connectFromHistory"
+      data-device-id="{{item.deviceId}}"
+    >
+      <view class="list-item-content">
+        <view class="list-item-title">{{item.deviceId}}</view>
+        <view class="list-item-subtitle">{{item.date}}</view>
+      </view>
+      <view 
+        class="list-item-action" 
+        bindtap="deleteHistory"
+        data-device-id="{{item.deviceId}}"
+        catchtap="deleteHistory"
+      >
+        删除
+      </view>
+    </view>
+  </view>
+
+  <!-- 空状态 -->
+  <view class="card" wx:if="{{connectionHistory.length === 0}}">
+    <view class="empty-state">
+      <view class="empty-icon">📱</view>
+      <view class="empty-title">暂无连接记录</view>
+      <view class="empty-subtitle">连接成功后会显示在这里</view>
+    </view>
+  </view>
+</view>

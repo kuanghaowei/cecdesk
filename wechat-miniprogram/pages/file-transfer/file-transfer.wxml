@@ -1,0 +1,161 @@
+<!--pages/file-transfer/file-transfer.wxml-->
+<view class="container">
+  <!-- 标签页导航 -->
+  <view class="tab-bar">
+    <view class="tab-item {{activeTab === 0 ? 'active' : ''}}" 
+          bindtap="switchTab" data-index="0">
+      <text>发送文件</text>
+    </view>
+    <view class="tab-item {{activeTab === 1 ? 'active' : ''}}" 
+          bindtap="switchTab" data-index="1">
+      <text>接收文件</text>
+    </view>
+    <view class="tab-item {{activeTab === 2 ? 'active' : ''}}" 
+          bindtap="switchTab" data-index="2">
+      <text>传输历史</text>
+    </view>
+  </view>
+
+  <!-- 发送文件页面 -->
+  <view class="tab-content" wx:if="{{activeTab === 0}}">
+    <view class="send-section">
+      <!-- 添加文件按钮 -->
+      <view class="add-files-btn" bindtap="chooseFilesToSend">
+        <view class="add-icon">+</view>
+        <text>选择文件</text>
+      </view>
+
+      <!-- 文件列表 -->
+      <view class="file-list" wx:if="{{sendFiles.length > 0}}">
+        <view class="file-item" wx:for="{{sendFiles}}" wx:key="id">
+          <view class="file-info">
+            <view class="file-icon">{{getFileIcon(item.type)}}</view>
+            <view class="file-details">
+              <text class="file-name">{{item.name}}</text>
+              <text class="file-size">{{formatFileSize(item.size)}}</text>
+              <text class="file-status">{{getStatusText(item.status)}}</text>
+            </view>
+          </view>
+          
+          <!-- 进度条 -->
+          <view class="progress-bar" wx:if="{{item.status === 'sending'}}">
+            <view class="progress-fill" style="width: {{item.progress}}%"></view>
+          </view>
+          
+          <!-- 操作按钮 -->
+          <view class="file-actions">
+            <view class="remove-btn" bindtap="removeSendFile" data-file-id="{{item.id}}"
+                  wx:if="{{item.status === 'pending'}}">
+              <text>移除</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 发送按钮 -->
+      <view class="send-btn-container" wx:if="{{sendFiles.length > 0}}">
+        <button class="send-btn {{isTransferring ? 'disabled' : ''}}" 
+                bindtap="startSendFiles" disabled="{{isTransferring}}">
+          {{isTransferring ? '发送中...' : '发送文件'}}
+        </button>
+      </view>
+
+      <!-- 空状态 -->
+      <view class="empty-state" wx:if="{{sendFiles.length === 0}}">
+        <view class="empty-icon">📁</view>
+        <text class="empty-text">暂无待发送文件</text>
+        <text class="empty-hint">点击上方按钮选择文件</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 接收文件页面 -->
+  <view class="tab-content" wx:if="{{activeTab === 1}}">
+    <view class="receive-section">
+      <!-- 请求文件按钮 -->
+      <view class="request-btn-container">
+        <button class="request-btn" bindtap="requestReceiveFile">
+          请求文件
+        </button>
+      </view>
+
+      <!-- 接收文件列表 -->
+      <view class="file-list" wx:if="{{receiveFiles.length > 0}}">
+        <view class="file-item" wx:for="{{receiveFiles}}" wx:key="id">
+          <view class="file-info">
+            <view class="file-icon">{{getFileIcon(item.type)}}</view>
+            <view class="file-details">
+              <text class="file-name">{{item.name}}</text>
+              <text class="file-size">{{formatFileSize(item.size)}}</text>
+              <text class="file-status">{{getStatusText(item.status)}}</text>
+            </view>
+          </view>
+          
+          <!-- 进度条 -->
+          <view class="progress-bar" wx:if="{{item.status === 'receiving'}}">
+            <view class="progress-fill" style="width: {{item.progress}}%"></view>
+          </view>
+          
+          <!-- 操作按钮 -->
+          <view class="file-actions">
+            <view class="save-btn" bindtap="saveReceivedFile" data-file-id="{{item.id}}"
+                  wx:if="{{item.status === 'completed'}}">
+              <text>保存</text>
+            </view>
+            <view class="delete-btn" bindtap="deleteReceivedFile" data-file-id="{{item.id}}">
+              <text>删除</text>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <!-- 空状态 -->
+      <view class="empty-state" wx:if="{{receiveFiles.length === 0}}">
+        <view class="empty-icon">📥</view>
+        <text class="empty-text">暂无接收文件</text>
+        <text class="empty-hint">点击上方按钮请求文件</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 传输历史页面 -->
+  <view class="tab-content" wx:if="{{activeTab === 2}}">
+    <view class="history-section">
+      <!-- 清空历史按钮 -->
+      <view class="clear-btn-container" wx:if="{{transferHistory.length > 0}}">
+        <button class="clear-btn" bindtap="clearTransferHistory">
+          清空历史
+        </button>
+      </view>
+
+      <!-- 历史记录列表 -->
+      <view class="history-list" wx:if="{{transferHistory.length > 0}}">
+        <view class="history-item" wx:for="{{transferHistory}}" wx:key="id">
+          <view class="history-info">
+            <view class="history-icon">
+              <text wx:if="{{item.direction === 'send'}}">📤</text>
+              <text wx:else>📥</text>
+            </view>
+            <view class="history-details">
+              <text class="history-name">{{item.fileName}}</text>
+              <text class="history-size">{{formatFileSize(item.fileSize)}}</text>
+              <text class="history-time">{{item.date}}</text>
+            </view>
+          </view>
+          <view class="history-status">
+            <text class="status-text {{item.status === 'completed' ? 'success' : 'failed'}}">
+              {{item.status === 'completed' ? '成功' : '失败'}}
+            </text>
+          </view>
+        </view>
+      </view>
+
+      <!-- 空状态 -->
+      <view class="empty-state" wx:if="{{transferHistory.length === 0}}">
+        <view class="empty-icon">📋</view>
+        <text class="empty-text">暂无传输历史</text>
+        <text class="empty-hint">完成文件传输后会显示在这里</text>
+      </view>
+    </view>
+  </view>
+</view>

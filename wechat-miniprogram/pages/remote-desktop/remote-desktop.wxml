@@ -1,0 +1,101 @@
+<!--pages/remote-desktop/remote-desktop.wxml-->
+<view class="remote-desktop-container">
+  <!-- 连接状态遮罩 -->
+  <view class="connecting-overlay" wx:if="{{isConnecting}}">
+    <view class="connecting-content">
+      <view class="loading-spinner"></view>
+      <text class="connecting-text">正在连接到 {{deviceId}}...</text>
+      <text class="connecting-tip">请稍候，正在建立安全连接</text>
+    </view>
+  </view>
+
+  <!-- 远程桌面显示区域 -->
+  <view class="desktop-display {{isFullscreen ? 'fullscreen' : ''}}" bindtap="toggleControls">
+    <!-- 使用 Canvas 显示远程桌面 -->
+    <canvas 
+      canvas-id="{{canvasId}}" 
+      class="desktop-canvas"
+      bindtouchstart="onTouchStart"
+      bindtouchmove="onTouchMove"
+      bindtouchend="onTouchEnd"
+      bindlongpress="onLongPress"
+      disable-scroll="{{true}}"
+    ></canvas>
+    
+    <!-- 实时播放器 (备用方案) -->
+    <live-player 
+      id="livePlayer"
+      class="live-player {{isConnected ? 'show' : 'hide'}}"
+      src=""
+      mode="RTC"
+      autoplay="{{true}}"
+      muted="{{false}}"
+      orientation="vertical"
+      object-fit="contain"
+      background-mute="{{false}}"
+      min-cache="1"
+      max-cache="3"
+      bindstatechange="onLivePlayerStateChange"
+      bindnetstatus="onLivePlayerNetStatus"
+    ></live-player>
+
+    <!-- 连接状态指示器 -->
+    <view class="connection-status {{showControls ? 'show' : 'hide'}}" wx:if="{{isConnected}}">
+      <view class="status-dot {{connectionQuality}}"></view>
+      <text class="status-text">{{connectionQuality === 'excellent' ? '优秀' : connectionQuality === 'good' ? '良好' : connectionQuality === 'fair' ? '一般' : '较差'}}</text>
+    </view>
+
+    <!-- 网络统计信息 -->
+    <view class="network-stats {{showControls ? 'show' : 'hide'}}" wx:if="{{isConnected}}">
+      <text class="stats-text">{{networkStats.rtt}}ms • {{networkStats.fps}}fps • {{networkStats.resolution}}</text>
+    </view>
+
+    <!-- 未连接状态 -->
+    <view class="disconnected-state" wx:if="{{!isConnected && !isConnecting}}">
+      <view class="disconnected-icon">📱</view>
+      <text class="disconnected-title">连接已断开</text>
+      <text class="disconnected-subtitle">点击重新连接按钮恢复连接</text>
+      <button class="btn-reconnect" bindtap="connectToRemoteDesktop">重新连接</button>
+    </view>
+  </view>
+
+  <!-- 控制面板 -->
+  <view class="control-panel {{showControls && isConnected ? 'show' : 'hide'}}">
+    <view class="control-buttons">
+      <!-- 虚拟键盘 -->
+      <view class="control-btn" bindtap="showVirtualKeyboard">
+        <view class="btn-icon">⌨️</view>
+        <text class="btn-text">键盘</text>
+      </view>
+
+      <!-- 截图 -->
+      <view class="control-btn" bindtap="takeScreenshot">
+        <view class="btn-icon">📷</view>
+        <text class="btn-text">截图</text>
+      </view>
+
+      <!-- 全屏 -->
+      <view class="control-btn" bindtap="toggleFullscreen">
+        <view class="btn-icon">{{isFullscreen ? '🔲' : '⛶'}}</view>
+        <text class="btn-text">{{isFullscreen ? '退出' : '全屏'}}</text>
+      </view>
+
+      <!-- 设置 -->
+      <view class="control-btn" bindtap="showSettings">
+        <view class="btn-icon">⚙️</view>
+        <text class="btn-text">设置</text>
+      </view>
+
+      <!-- 断开连接 -->
+      <view class="control-btn disconnect" bindtap="confirmDisconnect">
+        <view class="btn-icon">❌</view>
+        <text class="btn-text">断开</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 操作提示 -->
+  <view class="operation-hint {{showControls ? 'hide' : 'show'}}" wx:if="{{isConnected}}">
+    <text class="hint-text">点击屏幕显示控制面板</text>
+  </view>
+</view>

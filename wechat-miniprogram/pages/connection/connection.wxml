@@ -1,0 +1,154 @@
+<!--pages/connection/connection.wxml-->
+<view class="container">
+  
+  <!-- 网络状态栏 -->
+  <view class="network-status {{networkStatus.isConnected ? 'connected' : 'disconnected'}}">
+    <view class="network-info">
+      <text class="network-type">{{getNetworkTypeText(networkStatus.type)}}</text>
+      <text class="signal-icon" wx:if="{{networkStatus.isConnected}}">{{getSignalIcon(networkStatus.signal)}}</text>
+    </view>
+    <text class="network-text">
+      {{networkStatus.isConnected ? '网络正常' : '网络异常'}}
+    </text>
+  </view>
+
+  <!-- 连接状态区域 -->
+  <view class="connection-status">
+    <view class="status-indicator {{connectionStatus}}">
+      <view class="status-icon">
+        <text wx:if="{{connectionStatus === 'disconnected'}}">🔴</text>
+        <text wx:elif="{{connectionStatus === 'connecting'}}">🟡</text>
+        <text wx:elif="{{connectionStatus === 'connected'}}">🟢</text>
+        <text wx:else>❌</text>
+      </view>
+      <view class="status-text">
+        <text wx:if="{{connectionStatus === 'disconnected'}}">未连接</text>
+        <text wx:elif="{{connectionStatus === 'connecting'}}">连接中...</text>
+        <text wx:elif="{{connectionStatus === 'connected'}}">已连接</text>
+        <text wx:else>连接错误</text>
+      </view>
+    </view>
+    
+    <!-- 连接信息 -->
+    <view class="connection-info" wx:if="{{connectionStatus === 'connected'}}">
+      <view class="info-item">
+        <text class="info-label">远程设备:</text>
+        <text class="info-value">{{connectionInfo.remoteId}}</text>
+      </view>
+      <view class="info-item">
+        <text class="info-label">连接地址:</text>
+        <text class="info-value">{{connectionInfo.remoteAddress}}</text>
+      </view>
+      <view class="info-item">
+        <text class="info-label">连接时长:</text>
+        <text class="info-value">{{formatConnectionTime(connectionInfo.connectionTime)}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 连接表单 -->
+  <view class="connection-form" wx:if="{{connectionStatus !== 'connected'}}">
+    <view class="form-section">
+      <view class="form-title">连接远程设备</view>
+      
+      <view class="input-group">
+        <view class="input-label">设备ID</view>
+        <input class="input-field" 
+               placeholder="请输入远程设备ID" 
+               value="{{inputRemoteId}}"
+               bindinput="onRemoteIdInput"
+               maxlength="32" />
+      </view>
+      
+      <view class="input-group">
+        <view class="input-label">连接密码 (可选)</view>
+        <input class="input-field" 
+               placeholder="请输入连接密码" 
+               value="{{inputPassword}}"
+               bindinput="onPasswordInput"
+               password="true"
+               maxlength="16" />
+      </view>
+      
+      <!-- 连接选项 -->
+      <view class="connection-options">
+        <view class="option-item">
+          <text class="option-label">自动重连</text>
+          <switch checked="{{connectionOptions.autoReconnect}}" 
+                 bindchange="onAutoReconnectChange" />
+        </view>
+        
+        <view class="option-item">
+          <text class="option-label">画质</text>
+          <picker mode="selector" range="{{['流畅', '标准', '高清']}}" 
+                 value="{{connectionOptions.quality === 'low' ? 0 : connectionOptions.quality === 'medium' ? 1 : 2}}"
+                 bindchange="onQualityChange">
+            <view class="picker-text">{{getQualityText(connectionOptions.quality)}}</view>
+          </picker>
+        </view>
+        
+        <view class="option-item">
+          <text class="option-label">启用音频</text>
+          <switch checked="{{connectionOptions.enableAudio}}" 
+                 bindchange="onEnableAudioChange" />
+        </view>
+      </view>
+      
+      <!-- 连接按钮 -->
+      <view class="button-group">
+        <button class="connect-btn {{connectionStatus === 'connecting' ? 'disabled' : ''}}" 
+                bindtap="startConnection" 
+                disabled="{{connectionStatus === 'connecting'}}">
+          {{connectionStatus === 'connecting' ? '连接中...' : '开始连接'}}
+        </button>
+        
+        <button class="scan-btn" bindtap="scanQRCode">
+          扫码连接
+        </button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 已连接状态的操作 -->
+  <view class="connected-actions" wx:if="{{connectionStatus === 'connected'}}">
+    <button class="action-btn desktop-btn" bindtap="goToDesktop">
+      进入远程桌面
+    </button>
+    
+    <button class="action-btn file-btn" bindtap="goToFileTransfer">
+      文件传输
+    </button>
+    
+    <button class="action-btn disconnect-btn" bindtap="disconnect">
+      断开连接
+    </button>
+  </view>
+
+  <!-- 连接历史 -->
+  <view class="history-section" wx:if="{{connectionHistory.length > 0}}">
+    <view class="history-header">
+      <text class="history-title">连接历史</text>
+      <text class="clear-history" bindtap="clearHistory">清空</text>
+    </view>
+    
+    <view class="history-list">
+      <view class="history-item" wx:for="{{connectionHistory}}" wx:key="remoteId">
+        <view class="history-info" bindtap="connectFromHistory" data-remote-id="{{item.remoteId}}">
+          <view class="history-id">{{item.remoteId}}</view>
+          <view class="history-time">{{item.date}}</view>
+        </view>
+        <view class="history-actions">
+          <text class="delete-btn" bindtap="deleteHistoryItem" data-index="{{index}}">删除</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 空状态 -->
+  <view class="empty-state" wx:if="{{connectionHistory.length === 0 && connectionStatus === 'disconnected'}}">
+    <view class="empty-icon">🖥️</view>
+    <text class="empty-text">暂无连接历史</text>
+    <text class="empty-hint">输入设备ID或扫码开始连接</text>
+  </view>
+
+</view>

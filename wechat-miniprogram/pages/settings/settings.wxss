@@ -1,0 +1,291 @@
+/* pages/settings/settings.wxss */
+.container {
+  height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.settings-scroll {
+  height: 100%;
+  padding: 20rpx;
+}
+
+/* 设置区块 */
+.settings-section {
+  background-color: #ffffff;
+  border-radius: 12rpx;
+  margin-bottom: 30rpx;
+  overflow: hidden;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.1);
+}
+
+.section-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333333;
+  padding: 30rpx 30rpx 20rpx 30rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+  background-color: #fafafa;
+}
+
+/* 设置项 */
+.setting-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+  min-height: 80rpx;
+}
+
+.setting-item:last-child {
+  border-bottom: none;
+}
+
+.setting-label {
+  font-size: 28rpx;
+  color: #333333;
+  flex: 1;
+}
+
+/* 选择器样式 */
+.picker-text {
+  font-size: 26rpx;
+  color: #666666;
+  padding: 10rpx 20rpx;
+  background-color: #f8f8f8;
+  border-radius: 6rpx;
+  min-width: 100rpx;
+  text-align: center;
+}
+
+/* 开关样式 */
+switch {
+  transform: scale(0.8);
+}
+
+/* 存储信息 */
+.storage-info {
+  padding: 30rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.storage-text {
+  font-size: 26rpx;
+  color: #666666;
+  margin-bottom: 20rpx;
+}
+
+.storage-bar {
+  height: 12rpx;
+  background-color: #e0e0e0;
+  border-radius: 6rpx;
+  overflow: hidden;
+  margin-bottom: 10rpx;
+}
+
+.storage-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #4CAF50 0%, #FFC107 70%, #f44336 100%);
+  border-radius: 6rpx;
+  transition: width 0.3s ease;
+}
+
+.storage-percentage {
+  font-size: 24rpx;
+  color: #999999;
+  text-align: right;
+}
+
+/* 清理缓存按钮 */
+.clear-cache-btn {
+  background-color: #ff9800;
+  color: #ffffff;
+  border-radius: 8rpx;
+  padding: 20rpx 40rpx;
+  font-size: 26rpx;
+  border: none;
+  width: 200rpx;
+}
+
+/* 系统信息 */
+.info-item {
+  display: flex;
+  align-items: center;
+  padding: 25rpx 30rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+
+.info-item:last-child {
+  border-bottom: none;
+}
+
+.info-label {
+  font-size: 26rpx;
+  color: #666666;
+  width: 200rpx;
+  flex-shrink: 0;
+}
+
+.info-value {
+  font-size: 26rpx;
+  color: #333333;
+  flex: 1;
+  word-break: break-all;
+}
+
+/* 操作按钮 */
+.action-btn {
+  background-color: #2196F3;
+  color: #ffffff;
+  border-radius: 8rpx;
+  padding: 20rpx 40rpx;
+  font-size: 26rpx;
+  border: none;
+  width: 200rpx;
+}
+
+.action-btn:nth-child(2) {
+  background-color: #ff5722;
+}
+
+.action-btn:nth-child(3) {
+  background-color: #4CAF50;
+}
+
+.action-btn:nth-child(4) {
+  background-color: #9C27B0;
+}
+
+/* 响应式设计 */
+@media (max-width: 750rpx) {
+  .settings-scroll {
+    padding: 15rpx;
+  }
+  
+  .section-title {
+    font-size: 28rpx;
+    padding: 25rpx 25rpx 15rpx 25rpx;
+  }
+  
+  .setting-item {
+    padding: 25rpx;
+    min-height: 70rpx;
+  }
+  
+  .setting-label {
+    font-size: 26rpx;
+  }
+  
+  .picker-text {
+    font-size: 24rpx;
+    padding: 8rpx 16rpx;
+    min-width: 80rpx;
+  }
+  
+  .info-label {
+    font-size: 24rpx;
+    width: 160rpx;
+  }
+  
+  .info-value {
+    font-size: 24rpx;
+  }
+  
+  .action-btn, .clear-cache-btn {
+    font-size: 24rpx;
+    padding: 16rpx 32rpx;
+    width: 160rpx;
+  }
+}
+
+/* 动画效果 */
+.settings-section {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(20rpx);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 深色主题支持 */
+@media (prefers-color-scheme: dark) {
+  .container {
+    background-color: #121212;
+  }
+  
+  .settings-section {
+    background-color: #1e1e1e;
+  }
+  
+  .section-title {
+    color: #ffffff;
+    background-color: #2a2a2a;
+    border-bottom-color: #333333;
+  }
+  
+  .setting-item {
+    border-bottom-color: #333333;
+  }
+  
+  .setting-label {
+    color: #ffffff;
+  }
+  
+  .picker-text {
+    color: #cccccc;
+    background-color: #333333;
+  }
+  
+  .info-label {
+    color: #cccccc;
+  }
+  
+  .info-value {
+    color: #ffffff;
+  }
+  
+  .storage-text {
+    color: #cccccc;
+  }
+  
+  .storage-bar {
+    background-color: #333333;
+  }
+  
+  .storage-percentage {
+    color: #999999;
+  }
+}
+
+/* 高对比度支持 */
+@media (prefers-contrast: high) {
+  .setting-item {
+    border-bottom: 2rpx solid #000000;
+  }
+  
+  .picker-text {
+    border: 2rpx solid #000000;
+  }
+  
+  .storage-bar {
+    border: 2rpx solid #000000;
+  }
+}
+
+/* 减少动画支持 */
+@media (prefers-reduced-motion: reduce) {
+  .settings-section {
+    animation: none;
+  }
+  
+  .storage-fill {
+    transition: none;
+  }
+}

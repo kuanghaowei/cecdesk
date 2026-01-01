@@ -1,0 +1,45 @@
+[package]
+name = "remote-desktop-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# WebRTC dependencies
+webrtc = "0.10"
+webrtc-util = "0.8"
+webrtc-dtls = "0.9"
+webrtc-srtp = "0.12"
+
+# Async runtime
+tokio = { workspace = true }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Network
+uuid = { version = "1.0", features = ["v4"] }
+url = "2.0"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Media processing
+image = "0.24"
+bytes = "1.0"
+
+# FFI support
+cxx = "1.0"
+
+[lib]
+name = "remote_desktop_core"
+crate-type = ["cdylib", "rlib"]
+
+[build-dependencies]
+cxx-build = "1.0"

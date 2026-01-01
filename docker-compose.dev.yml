@@ -1,0 +1,118 @@
+# Docker Compose 开发环境配置
+version: '3.8'
+
+services:
+  # Rust 开发环境
+  rust-dev:
+    build:
+      context: .
+      dockerfile: docker/Rust.dockerfile
+    volumes:
+      - ./rust-core:/workspace
+      - cargo-cache:/usr/local/cargo/registry
+    working_dir: /workspace
+    command: cargo watch -x run
+    ports:
+      - "8080:8080"
+    environment:
+      - RUST_LOG=debug
+    networks:
+      - dev-network
+
+  # Flutter Web 开发环境
+  flutter-web:
+    build:
+      context: .
+      dockerfile: docker/Flutter.dockerfile
+    volumes:
+      - ./flutter-client:/workspace
+      - flutter-cache:/root/.flutter
+    working_dir: /workspace
+    command: flutter run -d web-server --web-port 8081 --web-hostname 0.0.0.0
+    ports:
+      - "8081:8081"
+    environment:
+      - FLUTTER_WEB=true
+    networks:
+      - dev-network
+
+  # 信令服务器 (Node.js)
+  signaling-server:
+    build:
+      context: .
+      dockerfile: docker/Node.dockerfile
+    volumes:
+      - ./signaling-server:/workspace
+      - node-modules:/workspace/node_modules
+    working_dir: /workspace
+    command: npm run dev
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+    networks:
+      - dev-network
+
+  # Redis (用于信令服务器缓存)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - dev-network
+
+  # PostgreSQL (用于会话存储)
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=remote_desktop
+      - POSTGRES_USER=dev
+      - POSTGRES_PASSWORD=dev123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - dev-network
+
+  # STUN/TURN 服务器
+  coturn:
+    image: coturn/coturn:latest
+    ports:
+      - "3478:3478/udp"
+      - "3478:3478/tcp"
+      - "49152-65535:49152-65535/udp"
+    environment:
+      - TURN_USERNAME=testuser
+      - TURN_PASSWORD=testpass
+    volumes:
+      - ./docker/coturn.conf:/etc/coturn/turnserver.conf
+    networks:
+      - dev-network
+
+  # 开发工具容器
+  dev-tools:
+    build:
+      context: .
+      dockerfile: docker/DevTools.dockerfile
+    volumes:
+      - .:/workspace
+      - /var/run/docker.sock:/var/run/docker.sock
+    working_dir: /workspace
+    command: tail -f /dev/null
+    networks:
+      - dev-network
+
+volumes:
+  cargo-cache:
+  flutter-cache:
+  node-modules:
+  redis-data:
+  postgres-data:
+
+networks:
+  dev-network:
+    driver: bridge
