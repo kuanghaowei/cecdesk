@@ -1,19 +1,29 @@
-# 设计文档 - 远程桌面控制系统
+# 设计文档 - 工一云 (CEC - Civil Engineering Cloud)
 
 ## 概述
 
-本系统是一个基于 WebRTC 的跨平台远程桌面控制解决方案，采用现代化的微服务架构和模块化设计。系统由客户端应用、信令服务、TURN/STUN 服务和后端 API 服务组成，支持 Windows、macOS、Ubuntu Desktop、iOS 和 Android 平台。
+工一云 (CEC) 是一个统一的云工作空间平台，采用现代化的分布式架构设计。系统核心基于 WebRTC 技术实现低延迟远程桌面控制，通过 MinIO 提供高性能云存储服务，使用 Keycloak 实现统一身份认证，并通过 Apache APISIX 作为 API 网关统一管理所有服务入口。
 
-### 核心技术栈
+### 设计目标
 
-- **WebRTC**: libwebrtc (Google 官方实现)，支持独立更新
-- **信令协议**: WebSocket + Protocol Buffers
-- **网络**: IPv4/IPv6 双栈，ICE/STUN/TURN
-- **加密**: DTLS-SRTP (媒体流)，TLS 1.3 (信令)，AES-256-GCM (文件传输)
-- **编解码器**: H.264/H.265/VP9 (视频)，Opus (音频)
-- **后端**: Go (高性能、并发友好)
-- **数据库**: PostgreSQL (用户数据)，Redis (会话状态、缓存)
-- **消息队列**: NATS (异步任务处理)
+1. **统一体验**: 在云终端、云电脑和云存储之间提供一致的用户体验
+2. **高性能**: 通过 WebRTC 实现低延迟（<100ms）的远程桌面控制
+3. **高可用**: 信令服务器无状态设计，支持水平扩展和故障转移
+4. **安全性**: 端到端加密，多因素认证，细粒度访问控制
+5. **跨平台**: 支持 Windows、macOS、Linux、iOS、Android 和 Web 浏览器
+
+### 技术选型
+
+| 组件 | 技术选型 | 说明 |
+|------|----------|------|
+| 远程桌面协议 | WebRTC | 低延迟、P2P、浏览器原生支持 |
+| 信令服务 | WebSocket + Redis | 实时通信、状态共享 |
+| 身份认证 | Keycloak + OIDC | 企业级 SSO、MFA 支持 |
+| API 网关 | Apache APISIX | 高性能、插件丰富 |
+| 云存储 | MinIO | S3 兼容、高性能对象存储 |
+| 虚拟化平台 | Proxmox VE | 开源、功能完整 |
+| 前端框架 | React (Web) / Flutter (Mobile) / Electron (Desktop) | 跨平台 UI |
+| 后端框架 | Go | 高性能、并发支持好 |
 
 ## 架构
 
@@ -21,1116 +31,1112 @@
 
 ```mermaid
 graph TB
-    subgraph "客户端层"
-        WinClient[Windows 客户端]
-        MacClient[macOS 客户端]
-        LinuxClient[Ubuntu 客户端]
-        iOSClient[iOS 客户端]
-        AndroidClient[Android 客户端]
+    subgraph Clients["客户端层"]
+        WEB[Web Client]
+        WIN[Windows Client]
+        MAC[macOS Client]
+        LINUX[Linux Client]
+        IOS[iOS Client]
+        ANDROID[Android Client]
     end
 
-    subgraph "负载均衡层"
-        LB[Nginx/HAProxy 负载均衡器]
+    subgraph Gateway["网关层"]
+        APISIX[Apache APISIX]
     end
 
-    subgraph "服务层"
-        SignalingSvc[信令服务集群]
-        APISvc[API 服务集群]
-        TURNSvc[TURN 服务集群]
-        STUNSvc[STUN 服务]
+    subgraph Auth["认证层"]
+        KC[Keycloak]
+        LDAP[LDAP/AD]
     end
 
-    subgraph "数据层"
-        Redis[(Redis 集群)]
-        PostgreSQL[(PostgreSQL)]
-        NATS[NATS 消息队列]
+    subgraph Services["服务层"]
+        SIG[Signaling Server]
+        DEVICE[Device Service]
+        SESSION[Session Service]
+        VM[VM Manager Service]
+        STORAGE[Storage Service]
+        SYNC[Sync Engine]
     end
 
-    WinClient --> LB
-    MacClient --> LB
-    LinuxClient --> LB
-    iOSClient --> LB
-    AndroidClient --> LB
+    subgraph Infrastructure["基础设施层"]
+        REDIS[(Redis Cluster)]
+        PG[(PostgreSQL)]
+        MINIO[(MinIO Cluster)]
+        PVE[PVE Cluster]
+    end
 
-    LB --> SignalingSvc
-    LB --> APISvc
+    subgraph WebRTC["WebRTC 基础设施"]
+        STUN[STUN Server]
+        TURN[TURN Server]
+    end
 
-    SignalingSvc --> Redis
-    SignalingSvc --> NATS
-    APISvc --> PostgreSQL
-    APISvc --> Redis
+    Clients --> APISIX
+    APISIX --> KC
+    APISIX --> Services
+    KC --> LDAP
+    Services --> REDIS
+    Services --> PG
+    STORAGE --> MINIO
+    VM --> PVE
+    Clients -.->|WebRTC| STUN
+    Clients -.->|WebRTC| TURN
+    SIG --> REDIS
 
-    WinClient -.P2P/TURN.-> TURNSvc
-    MacClient -.P2P/TURN.-> TURNSvc
-    LinuxClient -.P2P/TURN.-> TURNSvc
-    iOSClient -.P2P/TURN.-> TURNSvc
-    AndroidClient -.P2P/TURN.-> TURNSvc
-
-    WinClient -.STUN.-> STUNSvc
-    MacClient -.STUN.-> STUNSvc
 ```
 
-### 架构层次
+### 连接建立流程
 
-系统采用分层架构设计，从下到上分为：
+```mermaid
+sequenceDiagram
+    participant C as Controller
+    participant SIG as Signaling Server
+    participant STUN as STUN Server
+    participant TURN as TURN Server
+    participant T as Controlled
 
-1. **平台抽象层**: 封装操作系统特定功能（屏幕捕获、输入注入、系统 API）
-2. **核心业务层**: 跨平台共享的业务逻辑（连接管理、会话管理、协议处理）
-3. **WebRTC 引擎层**: 独立的 WebRTC 封装，支持热更新
-4. **网络传输层**: 信令通信、数据通道、媒体传输
-5. **应用层**: 平台特定的 UI 和用户交互
+    C->>SIG: 1. 连接请求 (target_device_id)
+    SIG->>T: 2. 转发连接请求
+    T->>SIG: 3. 接受/拒绝
+    SIG->>C: 4. 响应结果
+    
+    Note over C,T: ICE 候选收集
+    C->>STUN: 5. 获取公网地址 (IPv6 优先)
+    T->>STUN: 5. 获取公网地址 (IPv6 优先)
+    
+    C->>SIG: 6. SDP Offer
+    SIG->>T: 7. 转发 SDP Offer
+    T->>SIG: 8. SDP Answer
+    SIG->>C: 9. 转发 SDP Answer
+    
+    C->>SIG: 10. ICE Candidates
+    SIG->>T: 11. 转发 ICE Candidates
+    T->>SIG: 12. ICE Candidates
+    SIG->>C: 13. 转发 ICE Candidates
+    
+    Note over C,T: 尝试直连
+    C-->>T: 14. P2P 连接尝试
+    
+    alt 直连成功
+        C<-->T: WebRTC P2P 连接
+    else 直连失败
+        C->>TURN: 15. 中继请求
+        T->>TURN: 15. 中继请求
+        C<-->TURN: WebRTC 中继连接
+        TURN<-->T: WebRTC 中继连接
+    end
+```
+
+### 部署架构
+
+```mermaid
+graph TB
+    subgraph DMZ["DMZ 区域"]
+        LB[负载均衡器]
+        APISIX1[APISIX Node 1]
+        APISIX2[APISIX Node 2]
+    end
+
+    subgraph AppZone["应用区域"]
+        SIG1[Signaling Server 1]
+        SIG2[Signaling Server 2]
+        SIG3[Signaling Server 3]
+        APP1[App Server 1]
+        APP2[App Server 2]
+    end
+
+    subgraph DataZone["数据区域"]
+        REDIS1[(Redis Master)]
+        REDIS2[(Redis Replica)]
+        PG1[(PostgreSQL Primary)]
+        PG2[(PostgreSQL Standby)]
+        MINIO1[(MinIO Node 1)]
+        MINIO2[(MinIO Node 2)]
+        MINIO3[(MinIO Node 3)]
+        MINIO4[(MinIO Node 4)]
+    end
+
+    subgraph PVEZone["虚拟化区域"]
+        PVE1[PVE Node 1]
+        PVE2[PVE Node 2]
+        PVE3[PVE Node 3]
+    end
+
+    LB --> APISIX1
+    LB --> APISIX2
+    APISIX1 --> SIG1
+    APISIX1 --> SIG2
+    APISIX1 --> SIG3
+    APISIX2 --> APP1
+    APISIX2 --> APP2
+    SIG1 --> REDIS1
+    SIG2 --> REDIS1
+    SIG3 --> REDIS1
+    APP1 --> PG1
+    APP2 --> PG1
+    APP1 --> MINIO1
+    APP2 --> MINIO1
+```
 
 ## 组件和接口
 
-### 1. 客户端架构
+### 1. 信令服务器 (Signaling Server)
 
-#### 1.1 跨平台核心模块 (C++)
-
-
-使用 C++ 编写核心业务逻辑，通过 JNI (Android)、Objective-C++ (iOS/macOS) 和直接链接 (Windows/Linux) 实现跨平台复用。
-
-**核心模块组成**:
-
-```
-CoreEngine/
-├── connection/          # 连接管理
-│   ├── ConnectionManager
-│   ├── SessionManager
-│   └── DeviceRegistry
-├── webrtc/             # WebRTC 封装
-│   ├── WebRTCEngine
-│   ├── PeerConnectionWrapper
-│   └── DataChannelManager
-├── signaling/          # 信令客户端
-│   ├── SignalingClient
-│   └── ProtobufCodec
-├── transport/          # 传输层
-│   ├── FileTransfer
-│   └── InputEventTransport
-├── security/           # 安全模块
-│   ├── Encryption
-│   └── Authentication
-└── platform/           # 平台抽象接口
-    ├── IScreenCapture
-    ├── IInputInjector
-    └── ISystemInfo
-```
-
-**关键接口**:
-
-```cpp
-// 平台抽象接口
-class IScreenCapture {
-public:
-    virtual ~IScreenCapture() = default;
-    virtual std::vector<Display> GetDisplays() = 0;
-    virtual FrameBuffer CaptureFrame(DisplayId id) = 0;
-    virtual bool SupportsHardwareEncoding() = 0;
-};
-
-class IInputInjector {
-public:
-    virtual ~IInputInjector() = default;
-    virtual void InjectMouseEvent(const MouseEvent& event) = 0;
-    virtual void InjectKeyboardEvent(const KeyboardEvent& event) = 0;
-};
-
-// WebRTC 引擎接口
-class IWebRTCEngine {
-public:
-    virtual ~IWebRTCEngine() = default;
-    virtual void Initialize(const Config& config) = 0;
-    virtual PeerConnection* CreatePeerConnection() = 0;
-    virtual void SetVideoSource(VideoSource* source) = 0;
-    virtual std::string GetVersion() = 0;
-};
-```
-
-#### 1.2 平台特定实现
-
-**Windows (C++/WinRT)**:
-- 屏幕捕获: Windows.Graphics.Capture API (Windows 10+) 或 DXGI Desktop Duplication
-- 输入注入: SendInput API
-- UI: WPF 或 WinUI 3
-
-**macOS (Objective-C++/Swift)**:
-- 屏幕捕获: ScreenCaptureKit (macOS 12.3+) 或 CGDisplayStream
-- 输入注入: CGEvent API
-- UI: SwiftUI
-
-**Ubuntu Desktop (C++/Qt)**:
-- 屏幕捕获: X11 XDamage + XShm 或 PipeWire (Wayland)
-- 输入注入: XTest extension 或 libinput
-- UI: Qt 6
-
-**iOS (Swift/Objective-C++)**:
-- 屏幕捕获: ReplayKit (仅控制端，不支持被控)
-- UI: SwiftUI
-- 限制: iOS 不支持作为被控端
-
-**Android (Kotlin/JNI)**:
-- 屏幕捕获: MediaProjection API
-- 输入注入: AccessibilityService
-- UI: Jetpack Compose
-
-### 2. WebRTC 引擎模块
-
-#### 2.1 独立更新设计
-
-WebRTC 引擎作为独立的动态库 (.dll/.so/.dylib) 加载，支持运行时更新：
-
-```
-WebRTCEngine/
-├── libwebrtc_wrapper.so    # 封装层
-├── libwebrtc.so            # Google libwebrtc (可更新)
-└── version.json            # 版本信息
-```
-
-**版本管理**:
-
-
-```json
-{
-  "version": "M120.0.6099.109",
-  "min_compatible_version": "M115.0.0.0",
-  "download_url": "https://cdn.example.com/webrtc/M120.0.6099.109/",
-  "checksum": "sha256:...",
-  "release_date": "2024-01-15"
-}
-```
-
-**更新流程**:
-1. 客户端启动时检查 WebRTC 版本
-2. 后台下载新版本到临时目录
-3. 验证签名和校验和
-4. 下次启动时加载新版本
-5. 保留旧版本作为回退选项
-
-#### 2.2 编解码器配置
-
-```cpp
-struct CodecConfig {
-    // 视频编解码器优先级
-    std::vector<VideoCodec> video_codecs = {
-        VideoCodec::H265,  // 优先使用 H.265 (更高压缩率)
-        VideoCodec::H264,  // 回退到 H.264 (兼容性好)
-        VideoCodec::VP9    // 开源选项
-    };
-    
-    // 音频编解码器
-    AudioCodec audio_codec = AudioCodec::Opus;
-    
-    // 自适应码率
-    bool adaptive_bitrate = true;
-    int min_bitrate_kbps = 500;
-    int max_bitrate_kbps = 10000;
-    int start_bitrate_kbps = 2000;
-};
-```
-
-### 3. 信令服务
-
-#### 3.1 服务架构
-
-使用 Go 实现高性能信令服务，支持水平扩展：
-
-```
-SignalingService/
-├── api/                # API 定义
-│   ├── signaling.proto # Protocol Buffers 定义
-│   └── rest_api.go     # REST API (设备注册等)
-├── server/             # 服务器实现
-│   ├── websocket.go    # WebSocket 处理
-│   ├── session.go      # 会话管理
-│   └── router.go       # 消息路由
-├── storage/            # 存储层
-│   ├── redis.go        # Redis 客户端
-│   └── postgres.go     # PostgreSQL 客户端
-└── cluster/            # 集群支持
-    ├── discovery.go    # 服务发现
-    └── loadbalancer.go # 负载均衡
-```
-
-#### 3.2 信令协议 (Protocol Buffers)
-
-```protobuf
-syntax = "proto3";
-
-package signaling;
-
-// 信令消息类型
-enum MessageType {
-  REGISTER = 0;           // 设备注册
-  OFFER = 1;              // SDP Offer
-  ANSWER = 2;             // SDP Answer
-  ICE_CANDIDATE = 3;      // ICE 候选
-  CONNECT_REQUEST = 4;    // 连接请求
-  CONNECT_RESPONSE = 5;   // 连接响应
-  HEARTBEAT = 6;          // 心跳
-  DISCONNECT = 7;         // 断开连接
-}
-
-// 信令消息
-message SignalingMessage {
-  MessageType type = 1;
-  string from_device_id = 2;
-  string to_device_id = 3;
-  string session_id = 4;
-  int64 timestamp = 5;
-  bytes payload = 6;
-}
-
-// 设备注册
-message RegisterRequest {
-  string device_id = 1;
-  string device_name = 2;
-  string platform = 3;
-  string version = 4;
-  repeated string capabilities = 5;
-}
-
-// SDP Offer/Answer
-message SDPMessage {
-  string sdp = 1;
-  string type = 2;  // "offer" or "answer"
-}
-
-// ICE 候选
-message ICECandidate {
-  string candidate = 1;
-  string sdp_mid = 2;
-  int32 sdp_mline_index = 3;
-}
-```
-
-#### 3.3 会话状态管理
-
-使用 Redis 存储会话状态，支持跨实例共享：
+负责 WebRTC 连接建立过程中的信令交换。
 
 ```go
-type SessionState struct {
-    SessionID       string
-    ControllerID    string
-    ControlledID    string
-    Status          string  // "connecting", "connected", "disconnected"
-    CreatedAt       time.Time
-    LastActiveAt    time.Time
-    ConnectionType  string  // "direct" or "relay"
-    NetworkQuality  NetworkQuality
+// SignalingService 信令服务接口
+type SignalingService interface {
+    // 设备注册
+    RegisterDevice(ctx context.Context, req *RegisterDeviceRequest) (*RegisterDeviceResponse, error)
+    
+    // 设备心跳
+    Heartbeat(ctx context.Context, deviceID string) error
+    
+    // 获取设备状态
+    GetDeviceStatus(ctx context.Context, deviceID string) (*DeviceStatus, error)
+    
+    // 发起连接请求
+    RequestConnection(ctx context.Context, req *ConnectionRequest) (*ConnectionResponse, error)
+    
+    // 响应连接请求
+    RespondConnection(ctx context.Context, req *ConnectionResponseRequest) error
+    
+    // 交换 SDP
+    ExchangeSDP(ctx context.Context, req *SDPExchangeRequest) error
+    
+    // 交换 ICE Candidate
+    ExchangeICECandidate(ctx context.Context, req *ICECandidateRequest) error
 }
 
-type NetworkQuality struct {
-    RTT             int     // 往返延迟 (ms)
-    PacketLoss      float64 // 丢包率
-    Bitrate         int     // 码率 (kbps)
-    FrameRate       int     // 帧率
+// WebSocket 消息类型
+type MessageType string
+
+const (
+    MsgTypeRegister        MessageType = "register"
+    MsgTypeHeartbeat       MessageType = "heartbeat"
+    MsgTypeConnectionReq   MessageType = "connection_request"
+    MsgTypeConnectionResp  MessageType = "connection_response"
+    MsgTypeSDPOffer        MessageType = "sdp_offer"
+    MsgTypeSDPAnswer       MessageType = "sdp_answer"
+    MsgTypeICECandidate    MessageType = "ice_candidate"
+    MsgTypeDisconnect      MessageType = "disconnect"
+)
+
+// WebSocket 消息结构
+type WSMessage struct {
+    Type      MessageType     `json:"type"`
+    RequestID string          `json:"request_id"`
+    Payload   json.RawMessage `json:"payload"`
+    Timestamp int64           `json:"timestamp"`
 }
 ```
 
-### 4. STUN/TURN 服务
+### 2. 设备服务 (Device Service)
 
-#### 4.1 STUN 服务
-
-使用开源的 coturn 或自建 STUN 服务器，支持 IPv4/IPv6 双栈：
-
-```yaml
-# STUN 配置
-stun_servers:
-  - urls: 
-      - "stun:stun.example.com:3478"
-      - "stun:[2001:db8::1]:3478"
-    ipv4: true
-    ipv6: true
-```
-
-#### 4.2 TURN 服务
-
-部署 coturn 作为 TURN 服务器，支持 TCP/UDP 和认证：
-
-```yaml
-# TURN 配置
-turn_servers:
-  - urls:
-      - "turn:turn.example.com:3478?transport=udp"
-      - "turn:turn.example.com:3478?transport=tcp"
-      - "turns:turn.example.com:5349?transport=tcp"
-    username: "dynamic"  # 动态生成
-    credential: "dynamic"  # 基于时间的凭证
-    credential_type: "password"
-```
-
-**动态凭证生成** (防止滥用):
+管理设备注册、认证和状态。
 
 ```go
-func GenerateTURNCredentials(deviceID string, ttl time.Duration) (string, string) {
-    timestamp := time.Now().Add(ttl).Unix()
-    username := fmt.Sprintf("%d:%s", timestamp, deviceID)
+// DeviceService 设备服务接口
+type DeviceService interface {
+    // 注册设备
+    RegisterDevice(ctx context.Context, req *DeviceRegistration) (*Device, error)
     
-    // HMAC-SHA1 生成密码
-    mac := hmac.New(sha1.New, []byte(turnSecret))
-    mac.Write([]byte(username))
-    credential := base64.StdEncoding.EncodeToString(mac.Sum(nil))
+    // 获取设备信息
+    GetDevice(ctx context.Context, deviceID string) (*Device, error)
     
-    return username, credential
+    // 列出用户设备
+    ListUserDevices(ctx context.Context, userID string, filter *DeviceFilter) ([]*Device, error)
+    
+    // 更新设备信息
+    UpdateDevice(ctx context.Context, deviceID string, update *DeviceUpdate) (*Device, error)
+    
+    // 删除设备
+    DeleteDevice(ctx context.Context, deviceID string) error
+    
+    // 生成访问码
+    GenerateAccessCode(ctx context.Context, deviceID string) (*AccessCode, error)
+    
+    // 验证访问码
+    ValidateAccessCode(ctx context.Context, code string) (*Device, error)
+    
+    // 绑定设备到用户
+    BindDeviceToUser(ctx context.Context, deviceID, userID string) error
 }
+
+// DeviceType 设备类型
+type DeviceType string
+
+const (
+    DeviceTypeCloudTerminal DeviceType = "cloud_terminal"  // 云终端（物理PC）
+    DeviceTypeCloudComputer DeviceType = "cloud_computer"  // 云电脑（PVE VM）
+)
 ```
 
-### 5. API 服务
+### 3. 会话服务 (Session Service)
 
-#### 5.1 REST API
-
-使用 Go + Gin 框架实现 RESTful API：
+管理远程控制会话的生命周期。
 
 ```go
-// 主要 API 端点
-router.POST("/api/v1/auth/register", RegisterUser)
-router.POST("/api/v1/auth/login", LoginUser)
-router.GET("/api/v1/devices", ListDevices)
-router.POST("/api/v1/devices", RegisterDevice)
-router.DELETE("/api/v1/devices/:id", UnregisterDevice)
-router.POST("/api/v1/access-codes", GenerateAccessCode)
-router.GET("/api/v1/sessions", ListSessions)
-router.GET("/api/v1/sessions/:id", GetSessionDetails)
+// SessionService 会话服务接口
+type SessionService interface {
+    // 创建会话
+    CreateSession(ctx context.Context, req *CreateSessionRequest) (*Session, error)
+    
+    // 获取会话
+    GetSession(ctx context.Context, sessionID string) (*Session, error)
+    
+    // 列出活动会话
+    ListActiveSessions(ctx context.Context, userID string) ([]*Session, error)
+    
+    // 更新会话状态
+    UpdateSessionStatus(ctx context.Context, sessionID string, status SessionStatus) error
+    
+    // 结束会话
+    EndSession(ctx context.Context, sessionID string, reason string) error
+    
+    // 获取会话历史
+    GetSessionHistory(ctx context.Context, userID string, filter *SessionFilter) ([]*Session, error)
+    
+    // 更新会话统计
+    UpdateSessionStats(ctx context.Context, sessionID string, stats *SessionStats) error
+}
+
+// SessionStatus 会话状态
+type SessionStatus string
+
+const (
+    SessionStatusPending     SessionStatus = "pending"      // 等待连接
+    SessionStatusConnecting  SessionStatus = "connecting"   // 正在连接
+    SessionStatusConnected   SessionStatus = "connected"    // 已连接
+    SessionStatusDisconnected SessionStatus = "disconnected" // 已断开
+)
 ```
 
-#### 5.2 认证和授权
+### 4. VM 管理服务 (VM Manager Service)
 
-使用 JWT (JSON Web Token) 进行用户认证：
+管理 PVE 虚拟机的生命周期和监控。
 
 ```go
-type Claims struct {
-    UserID    string   `json:"user_id"`
-    DeviceID  string   `json:"device_id"`
-    Roles     []string `json:"roles"`
-    jwt.StandardClaims
+// VMManagerService VM 管理服务接口
+type VMManagerService interface {
+    // 连接 PVE 服务器
+    ConnectPVE(ctx context.Context, req *PVEConnectionRequest) (*PVEConnection, error)
+    
+    // 列出虚拟机
+    ListVMs(ctx context.Context, pveID string) ([]*VM, error)
+    
+    // 获取 VM 详情
+    GetVM(ctx context.Context, pveID string, vmID int) (*VMDetail, error)
+    
+    // 启动 VM
+    StartVM(ctx context.Context, pveID string, vmID int) error
+    
+    // 停止 VM
+    StopVM(ctx context.Context, pveID string, vmID int, force bool) error
+    
+    // 重启 VM
+    RestartVM(ctx context.Context, pveID string, vmID int) error
+    
+    // 暂停 VM
+    SuspendVM(ctx context.Context, pveID string, vmID int) error
+    
+    // 恢复 VM
+    ResumeVM(ctx context.Context, pveID string, vmID int) error
+    
+    // 获取 VM 监控数据
+    GetVMMetrics(ctx context.Context, pveID string, vmID int) (*VMMetrics, error)
+    
+    // 部署远程控制代理
+    DeployAgent(ctx context.Context, pveID string, vmID int) error
 }
 
-func GenerateToken(userID, deviceID string) (string, error) {
-    claims := Claims{
-        UserID:   userID,
-        DeviceID: deviceID,
-        Roles:    []string{"user"},
-        StandardClaims: jwt.StandardClaims{
-            ExpiresAt: time.Now().Add(24 * time.Hour).Unix(),
-            Issuer:    "remote-desktop-system",
-        },
-    }
+// VMStatus VM 状态
+type VMStatus string
+
+const (
+    VMStatusRunning VMStatus = "running"
+    VMStatusStopped VMStatus = "stopped"
+    VMStatusPaused  VMStatus = "paused"
+)
+```
+
+### 5. 存储服务 (Storage Service)
+
+管理云存储的文件操作。
+
+```go
+// StorageService 存储服务接口
+type StorageService interface {
+    // 列出文件
+    ListFiles(ctx context.Context, userID string, path string) ([]*FileInfo, error)
     
-    token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-    return token.SignedString([]byte(jwtSecret))
+    // 获取文件信息
+    GetFileInfo(ctx context.Context, userID string, path string) (*FileInfo, error)
+    
+    // 上传文件（获取预签名 URL）
+    GetUploadURL(ctx context.Context, userID string, path string) (*PresignedURL, error)
+    
+    // 下载文件（获取预签名 URL）
+    GetDownloadURL(ctx context.Context, userID string, path string) (*PresignedURL, error)
+    
+    // 创建文件夹
+    CreateFolder(ctx context.Context, userID string, path string) error
+    
+    // 删除文件/文件夹
+    Delete(ctx context.Context, userID string, path string) error
+    
+    // 移动/重命名
+    Move(ctx context.Context, userID string, srcPath, dstPath string) error
+    
+    // 复制
+    Copy(ctx context.Context, userID string, srcPath, dstPath string) error
+    
+    // 获取版本历史
+    GetVersionHistory(ctx context.Context, userID string, path string) ([]*FileVersion, error)
+    
+    // 恢复版本
+    RestoreVersion(ctx context.Context, userID string, path string, versionID string) error
+    
+    // 创建分享链接
+    CreateShareLink(ctx context.Context, userID string, path string, expiry time.Duration) (*ShareLink, error)
+    
+    // 获取存储使用量
+    GetStorageUsage(ctx context.Context, userID string) (*StorageUsage, error)
 }
 ```
+
+### 6. 同步引擎 (Sync Engine)
+
+实现文件增量同步。
+
+```go
+// SyncEngine 同步引擎接口
+type SyncEngine interface {
+    // 初始化同步
+    InitSync(ctx context.Context, userID string, localPath string) (*SyncState, error)
+    
+    // 扫描本地变更
+    ScanLocalChanges(ctx context.Context, syncID string) ([]*FileChange, error)
+    
+    // 扫描远程变更
+    ScanRemoteChanges(ctx context.Context, syncID string) ([]*FileChange, error)
+    
+    // 计算文件差异
+    ComputeDelta(ctx context.Context, localFile, remoteFile *FileInfo) (*FileDelta, error)
+    
+    // 同步文件
+    SyncFile(ctx context.Context, syncID string, change *FileChange) error
+    
+    // 解决冲突
+    ResolveConflict(ctx context.Context, syncID string, conflict *Conflict, resolution ConflictResolution) error
+    
+    // 获取同步状态
+    GetSyncStatus(ctx context.Context, syncID string) (*SyncStatus, error)
+    
+    // 暂停同步
+    PausSync(ctx context.Context, syncID string) error
+    
+    // 恢复同步
+    ResumeSync(ctx context.Context, syncID string) error
+}
+
+// ConflictResolution 冲突解决策略
+type ConflictResolution string
+
+const (
+    ConflictResolutionKeepLocal  ConflictResolution = "keep_local"
+    ConflictResolutionKeepRemote ConflictResolution = "keep_remote"
+    ConflictResolutionKeepBoth   ConflictResolution = "keep_both"
+)
+```
+
+### 7. WebRTC 引擎 (WebRTC Engine)
+
+封装 WebRTC 功能，提供统一的接口。
+
+```go
+// WebRTCEngine WebRTC 引擎接口
+type WebRTCEngine interface {
+    // 创建 PeerConnection
+    CreatePeerConnection(ctx context.Context, config *RTCConfig) (*PeerConnection, error)
+    
+    // 创建 Offer
+    CreateOffer(ctx context.Context, pc *PeerConnection) (*SessionDescription, error)
+    
+    // 创建 Answer
+    CreateAnswer(ctx context.Context, pc *PeerConnection) (*SessionDescription, error)
+    
+    // 设置本地描述
+    SetLocalDescription(ctx context.Context, pc *PeerConnection, sdp *SessionDescription) error
+    
+    // 设置远程描述
+    SetRemoteDescription(ctx context.Context, pc *PeerConnection, sdp *SessionDescription) error
+    
+    // 添加 ICE Candidate
+    AddICECandidate(ctx context.Context, pc *PeerConnection, candidate *ICECandidate) error
+    
+    // 创建数据通道
+    CreateDataChannel(ctx context.Context, pc *PeerConnection, label string) (*DataChannel, error)
+    
+    // 添加媒体轨道
+    AddTrack(ctx context.Context, pc *PeerConnection, track *MediaTrack) error
+    
+    // 获取连接统计
+    GetStats(ctx context.Context, pc *PeerConnection) (*RTCStats, error)
+    
+    // 关闭连接
+    Close(ctx context.Context, pc *PeerConnection) error
+}
+
+// RTCConfig WebRTC 配置
+type RTCConfig struct {
+    ICEServers      []ICEServer `json:"ice_servers"`
+    ICETransportPolicy string   `json:"ice_transport_policy"` // "all" or "relay"
+    PreferIPv6      bool        `json:"prefer_ipv6"`
+}
+
+// ICEServer ICE 服务器配置
+type ICEServer struct {
+    URLs       []string `json:"urls"`
+    Username   string   `json:"username,omitempty"`
+    Credential string   `json:"credential,omitempty"`
+}
+```
+
 
 ## 数据模型
 
-### 1. 用户模型
+### 核心实体
 
-```sql
-CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    email VARCHAR(255) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
-    display_name VARCHAR(100),
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    last_login_at TIMESTAMP,
-    status VARCHAR(20) DEFAULT 'active'
-);
+```go
+// Device 设备
+type Device struct {
+    ID           string            `json:"id" db:"id"`
+    UserID       string            `json:"user_id" db:"user_id"`
+    Name         string            `json:"name" db:"name"`
+    Type         DeviceType        `json:"type" db:"type"`
+    Platform     string            `json:"platform" db:"platform"`     // windows, macos, linux, ios, android, web
+    Version      string            `json:"version" db:"version"`       // 客户端版本
+    Status       DeviceStatus      `json:"status" db:"status"`
+    LastOnline   time.Time         `json:"last_online" db:"last_online"`
+    HardwareInfo *HardwareInfo     `json:"hardware_info,omitempty" db:"hardware_info"`
+    NetworkInfo  *NetworkInfo      `json:"network_info,omitempty" db:"network_info"`
+    Tags         []string          `json:"tags" db:"tags"`
+    GroupID      string            `json:"group_id,omitempty" db:"group_id"`
+    CreatedAt    time.Time         `json:"created_at" db:"created_at"`
+    UpdatedAt    time.Time         `json:"updated_at" db:"updated_at"`
+}
 
-CREATE INDEX idx_users_email ON users(email);
+// DeviceStatus 设备状态
+type DeviceStatus string
+
+const (
+    DeviceStatusOnline  DeviceStatus = "online"
+    DeviceStatusOffline DeviceStatus = "offline"
+    DeviceStatusBusy    DeviceStatus = "busy"  // 正在被控制
+)
+
+// HardwareInfo 硬件信息
+type HardwareInfo struct {
+    CPUModel    string `json:"cpu_model"`
+    CPUCores    int    `json:"cpu_cores"`
+    MemoryTotal int64  `json:"memory_total"` // bytes
+    DiskTotal   int64  `json:"disk_total"`   // bytes
+    GPUModel    string `json:"gpu_model,omitempty"`
+    Displays    []DisplayInfo `json:"displays"`
+}
+
+// DisplayInfo 显示器信息
+type DisplayInfo struct {
+    ID         int    `json:"id"`
+    Name       string `json:"name"`
+    Width      int    `json:"width"`
+    Height     int    `json:"height"`
+    RefreshRate int   `json:"refresh_rate"`
+    IsPrimary  bool   `json:"is_primary"`
+}
+
+// NetworkInfo 网络信息
+type NetworkInfo struct {
+    PublicIPv4  string `json:"public_ipv4,omitempty"`
+    PublicIPv6  string `json:"public_ipv6,omitempty"`
+    LocalIP     string `json:"local_ip"`
+    NATType     string `json:"nat_type"` // full_cone, restricted_cone, port_restricted, symmetric
+    MACAddress  string `json:"mac_address"`
+}
+
+// Session 会话
+type Session struct {
+    ID              string        `json:"id" db:"id"`
+    ControllerID    string        `json:"controller_id" db:"controller_id"`
+    ControlledID    string        `json:"controlled_id" db:"controlled_id"`
+    Status          SessionStatus `json:"status" db:"status"`
+    ConnectionType  string        `json:"connection_type" db:"connection_type"` // direct, relay
+    StartTime       time.Time     `json:"start_time" db:"start_time"`
+    EndTime         *time.Time    `json:"end_time,omitempty" db:"end_time"`
+    DisconnectReason string       `json:"disconnect_reason,omitempty" db:"disconnect_reason"`
+    Stats           *SessionStats `json:"stats,omitempty" db:"stats"`
+    CreatedAt       time.Time     `json:"created_at" db:"created_at"`
+}
+
+// SessionStats 会话统计
+type SessionStats struct {
+    RTT              int64   `json:"rtt"`               // 往返延迟 (ms)
+    PacketLoss       float64 `json:"packet_loss"`       // 丢包率 (%)
+    Jitter           int64   `json:"jitter"`            // 抖动 (ms)
+    VideoBitrate     int64   `json:"video_bitrate"`     // 视频码率 (bps)
+    AudioBitrate     int64   `json:"audio_bitrate"`     // 音频码率 (bps)
+    FrameRate        int     `json:"frame_rate"`        // 帧率
+    Resolution       string  `json:"resolution"`        // 分辨率
+    VideoCodec       string  `json:"video_codec"`       // 视频编解码器
+    AudioCodec       string  `json:"audio_codec"`       // 音频编解码器
+    BytesSent        int64   `json:"bytes_sent"`        // 发送字节数
+    BytesReceived    int64   `json:"bytes_received"`    // 接收字节数
+}
+
+// AccessCode 访问码
+type AccessCode struct {
+    Code      string    `json:"code" db:"code"`
+    DeviceID  string    `json:"device_id" db:"device_id"`
+    ExpiresAt time.Time `json:"expires_at" db:"expires_at"`
+    CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+// VM 虚拟机
+type VM struct {
+    ID          int       `json:"id"`
+    PVEID       string    `json:"pve_id"`
+    Name        string    `json:"name"`
+    Status      VMStatus  `json:"status"`
+    OSType      string    `json:"os_type"`      // linux, windows
+    CPUCores    int       `json:"cpu_cores"`
+    MemoryMB    int       `json:"memory_mb"`
+    DiskGB      int       `json:"disk_gb"`
+    IPAddress   string    `json:"ip_address,omitempty"`
+    AgentStatus string    `json:"agent_status"` // installed, not_installed, unknown
+    Uptime      int64     `json:"uptime"`       // seconds
+}
+
+// VMMetrics VM 监控指标
+type VMMetrics struct {
+    VMID        int       `json:"vm_id"`
+    Timestamp   time.Time `json:"timestamp"`
+    CPUUsage    float64   `json:"cpu_usage"`     // 0-100
+    MemoryUsage float64   `json:"memory_usage"`  // 0-100
+    DiskRead    int64     `json:"disk_read"`     // bytes/s
+    DiskWrite   int64     `json:"disk_write"`    // bytes/s
+    NetIn       int64     `json:"net_in"`        // bytes/s
+    NetOut      int64     `json:"net_out"`       // bytes/s
+}
+
+// FileInfo 文件信息
+type FileInfo struct {
+    Path         string    `json:"path"`
+    Name         string    `json:"name"`
+    IsDir        bool      `json:"is_dir"`
+    Size         int64     `json:"size"`
+    ContentType  string    `json:"content_type,omitempty"`
+    ModifiedAt   time.Time `json:"modified_at"`
+    VersionID    string    `json:"version_id,omitempty"`
+    VersionCount int       `json:"version_count,omitempty"`
+    Checksum     string    `json:"checksum,omitempty"` // MD5 or SHA256
+}
+
+// FileVersion 文件版本
+type FileVersion struct {
+    VersionID  string    `json:"version_id"`
+    Size       int64     `json:"size"`
+    ModifiedAt time.Time `json:"modified_at"`
+    IsLatest   bool      `json:"is_latest"`
+    IsDeleted  bool      `json:"is_deleted"`
+}
+
+// ShareLink 分享链接
+type ShareLink struct {
+    ID        string    `json:"id"`
+    UserID    string    `json:"user_id"`
+    Path      string    `json:"path"`
+    URL       string    `json:"url"`
+    Password  string    `json:"password,omitempty"`
+    ExpiresAt time.Time `json:"expires_at"`
+    Downloads int       `json:"downloads"`
+    MaxDownloads int    `json:"max_downloads,omitempty"`
+    CreatedAt time.Time `json:"created_at"`
+}
+
+// SyncState 同步状态
+type SyncState struct {
+    ID          string    `json:"id"`
+    UserID      string    `json:"user_id"`
+    LocalPath   string    `json:"local_path"`
+    RemotePath  string    `json:"remote_path"`
+    Status      string    `json:"status"` // syncing, paused, error
+    LastSync    time.Time `json:"last_sync"`
+    PendingChanges int    `json:"pending_changes"`
+    Conflicts   int       `json:"conflicts"`
+}
+
+// FileDelta 文件差异
+type FileDelta struct {
+    Path       string       `json:"path"`
+    BlockSize  int          `json:"block_size"`
+    Blocks     []BlockDelta `json:"blocks"`
+    TotalSize  int64        `json:"total_size"`
+    DeltaSize  int64        `json:"delta_size"`
+}
+
+// BlockDelta 块差异
+type BlockDelta struct {
+    Index    int    `json:"index"`
+    Checksum string `json:"checksum"`
+    Data     []byte `json:"data,omitempty"` // 只有变化的块才有数据
+    IsNew    bool   `json:"is_new"`
+}
+
+// Conflict 同步冲突
+type Conflict struct {
+    ID          string    `json:"id"`
+    SyncID      string    `json:"sync_id"`
+    Path        string    `json:"path"`
+    LocalInfo   *FileInfo `json:"local_info"`
+    RemoteInfo  *FileInfo `json:"remote_info"`
+    DetectedAt  time.Time `json:"detected_at"`
+}
+
+// User 用户（来自 Keycloak）
+type User struct {
+    ID            string    `json:"id"`
+    Username      string    `json:"username"`
+    Email         string    `json:"email"`
+    FirstName     string    `json:"first_name"`
+    LastName      string    `json:"last_name"`
+    Roles         []string  `json:"roles"`
+    StorageQuota  int64     `json:"storage_quota"`  // bytes
+    StorageUsed   int64     `json:"storage_used"`   // bytes
+    MFAEnabled    bool      `json:"mfa_enabled"`
+    CreatedAt     time.Time `json:"created_at"`
+    LastLoginAt   time.Time `json:"last_login_at"`
+}
+
+// PVEConnection PVE 连接配置
+type PVEConnection struct {
+    ID          string    `json:"id" db:"id"`
+    UserID      string    `json:"user_id" db:"user_id"`
+    Name        string    `json:"name" db:"name"`
+    Host        string    `json:"host" db:"host"`
+    Port        int       `json:"port" db:"port"`
+    Username    string    `json:"username" db:"username"`
+    TokenID     string    `json:"token_id,omitempty" db:"token_id"`
+    TokenSecret string    `json:"-" db:"token_secret"` // 加密存储
+    Realm       string    `json:"realm" db:"realm"`    // pam, pve, ldap
+    Verified    bool      `json:"verified" db:"verified"`
+    CreatedAt   time.Time `json:"created_at" db:"created_at"`
+    UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+}
 ```
 
-### 2. 设备模型
+### 数据库 Schema
 
 ```sql
+-- 设备表
 CREATE TABLE devices (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    device_id VARCHAR(64) UNIQUE NOT NULL,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
-    device_name VARCHAR(100) NOT NULL,
-    platform VARCHAR(20) NOT NULL,
-    os_version VARCHAR(50),
-    app_version VARCHAR(20),
-    last_online_at TIMESTAMP,
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    platform VARCHAR(50) NOT NULL,
+    version VARCHAR(50),
+    status VARCHAR(20) DEFAULT 'offline',
+    last_online TIMESTAMP,
+    hardware_info JSONB,
+    network_info JSONB,
+    tags TEXT[],
+    group_id VARCHAR(36),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    status VARCHAR(20) DEFAULT 'offline'
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX idx_devices_user_id ON devices(user_id);
-CREATE INDEX idx_devices_device_id ON devices(device_id);
-```
+CREATE INDEX idx_devices_status ON devices(status);
 
-### 3. 访问码模型
-
-```sql
-CREATE TABLE access_codes (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    code VARCHAR(10) UNIQUE NOT NULL,
-    device_id UUID REFERENCES devices(id) ON DELETE CASCADE,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP NOT NULL,
-    used_at TIMESTAMP,
-    status VARCHAR(20) DEFAULT 'active'
-);
-
-CREATE INDEX idx_access_codes_code ON access_codes(code);
-CREATE INDEX idx_access_codes_expires_at ON access_codes(expires_at);
-```
-
-### 4. 会话模型
-
-```sql
+-- 会话表
 CREATE TABLE sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id VARCHAR(64) UNIQUE NOT NULL,
-    controller_device_id UUID REFERENCES devices(id),
-    controlled_device_id UUID REFERENCES devices(id),
-    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    ended_at TIMESTAMP,
-    duration_seconds INTEGER,
+    id VARCHAR(36) PRIMARY KEY,
+    controller_id VARCHAR(36) NOT NULL REFERENCES devices(id),
+    controlled_id VARCHAR(36) NOT NULL REFERENCES devices(id),
+    status VARCHAR(20) NOT NULL,
     connection_type VARCHAR(20),
-    disconnect_reason VARCHAR(100),
-    avg_rtt_ms INTEGER,
-    avg_bitrate_kbps INTEGER,
-    total_bytes_sent BIGINT,
-    total_bytes_received BIGINT
+    start_time TIMESTAMP NOT NULL,
+    end_time TIMESTAMP,
+    disconnect_reason TEXT,
+    stats JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_sessions_controller ON sessions(controller_device_id);
-CREATE INDEX idx_sessions_controlled ON sessions(controlled_device_id);
-CREATE INDEX idx_sessions_started_at ON sessions(started_at);
-```
+CREATE INDEX idx_sessions_controller ON sessions(controller_id);
+CREATE INDEX idx_sessions_controlled ON sessions(controlled_id);
+CREATE INDEX idx_sessions_status ON sessions(status);
+CREATE INDEX idx_sessions_start_time ON sessions(start_time);
 
-### 5. Redis 数据结构
+-- 访问码表
+CREATE TABLE access_codes (
+    code VARCHAR(10) PRIMARY KEY,
+    device_id VARCHAR(36) NOT NULL REFERENCES devices(id),
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-```
-# 在线设备集合
-online_devices: SET
-  - device_id_1
-  - device_id_2
+CREATE INDEX idx_access_codes_device ON access_codes(device_id);
+CREATE INDEX idx_access_codes_expires ON access_codes(expires_at);
 
-# 设备信息哈希
-device:{device_id}: HASH
-  - user_id
-  - device_name
-  - platform
-  - last_heartbeat
-  - signaling_server
+-- PVE 连接表
+CREATE TABLE pve_connections (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    host VARCHAR(255) NOT NULL,
+    port INT DEFAULT 8006,
+    username VARCHAR(255) NOT NULL,
+    token_id VARCHAR(255),
+    token_secret_encrypted BYTEA,
+    realm VARCHAR(50) DEFAULT 'pam',
+    verified BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-# 活动会话哈希
-session:{session_id}: HASH
-  - controller_id
-  - controlled_id
-  - status
-  - created_at
-  - connection_type
+CREATE INDEX idx_pve_connections_user ON pve_connections(user_id);
 
-# 设备到会话映射
-device_sessions:{device_id}: SET
-  - session_id_1
-  - session_id_2
+-- 设备分组表
+CREATE TABLE device_groups (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_device_groups_user ON device_groups(user_id);
+
+-- 分享链接表
+CREATE TABLE share_links (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL,
+    path TEXT NOT NULL,
+    password_hash VARCHAR(255),
+    expires_at TIMESTAMP NOT NULL,
+    downloads INT DEFAULT 0,
+    max_downloads INT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_share_links_user ON share_links(user_id);
+CREATE INDEX idx_share_links_expires ON share_links(expires_at);
+
+-- 同步状态表
+CREATE TABLE sync_states (
+    id VARCHAR(36) PRIMARY KEY,
+    user_id VARCHAR(36) NOT NULL,
+    local_path TEXT NOT NULL,
+    remote_path TEXT NOT NULL,
+    status VARCHAR(20) DEFAULT 'paused',
+    last_sync TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_sync_states_user ON sync_states(user_id);
 ```
 
 
 ## 正确性属性
 
-*属性是一个特征或行为，应该在系统的所有有效执行中保持为真——本质上是关于系统应该做什么的形式化陈述。属性作为人类可读规范和机器可验证正确性保证之间的桥梁。*
+*正确性属性是系统在所有有效执行中都应保持为真的特征或行为——本质上是关于系统应该做什么的形式化陈述。属性作为人类可读规范和机器可验证正确性保证之间的桥梁。*
 
-### 属性 1: WebRTC 引擎更新兼容性
+### Property 1: 设备 ID 唯一性
 
-*对于任意* WebRTC 引擎版本更新，如果新版本的接口与旧版本兼容，则更新后应用的其他模块应能正常工作而无需修改
+*对于任意*设备注册请求，系统生成的 Device_ID 必须在整个系统中唯一，不会与任何已存在的设备 ID 冲突。
 
-**验证: 需求 2.4**
+**Validates: Requirements 4.2, 7.1**
 
-### 属性 2: 网络自适应码率调整
+### Property 2: 访问码过期机制
 
-*对于任意* 网络带宽变化，WebRTC 引擎应在检测到带宽变化后调整码率，使其保持在配置的最小和最大码率范围内
+*对于任意*生成的 Access_Code，在生成后 10 分钟内应该有效，超过 10 分钟后应该自动失效，使用过期的访问码进行连接应该被拒绝。
 
-**验证: 需求 2.6**
+**Validates: Requirements 7.7**
 
-### 属性 3: IPv6 优先连接尝试
+### Property 3: IPv6 优先回退
 
-*对于任意* 支持双栈的网络环境，在建立连接时，系统应首先尝试 IPv6 连接，只有在 IPv6 失败后才尝试 IPv4
+*对于任意*连接建立请求，系统应该首先尝试 IPv6 连接；如果 IPv6 连接失败，系统应该自动回退到 IPv4 连接，最终连接应该成功建立（假设至少一种协议可用）。
 
-**验证: 需求 3.2**
+**Validates: Requirements 3.2, 3.3, 3.4**
 
-### 属性 4: IPv6 到 IPv4 自动回退
+### Property 4: STUN/TURN 回退机制
 
-*对于任意* 连接请求，如果 IPv6 连接尝试失败，系统应自动回退到 IPv4 连接尝试
+*对于任意*连接建立请求，系统应该首先尝试通过 STUN 建立直连；如果直连失败，系统应该自动使用 TURN 服务器进行中继，最终连接应该成功建立。
 
-**验证: 需求 3.3**
+**Validates: Requirements 5.2, 5.3**
 
-### 属性 5: 设备 ID 唯一性
+### Property 5: 信令交换完整性
 
-*对于任意* 两个不同的设备注册请求，系统应生成不同的 Device_ID，确保全局唯一性
+*对于任意*连接请求，信令服务器应该完整转发 SDP offer/answer 和所有 ICE candidates，转发后的消息内容应该与原始消息完全一致。
 
-**验证: 需求 4.2, 6.1**
+**Validates: Requirements 4.3**
 
-### 属性 6: 信令消息正确转发
+### Property 6: 信令交换时效性
 
-*对于任意* 从 Controller 发送到 Controlled 的信令消息（SDP offer/answer 或 ICE candidate），信令服务器应将消息完整地转发到目标设备
+*对于任意*信令交换过程，从开始到完成的时间应该不超过 5 秒。
 
-**验证: 需求 4.3**
+**Validates: Requirements 4.5**
 
-### 属性 7: 设备在线状态一致性
+### Property 7: 用户 ID 唯一性
 
-*对于任意* 设备，查询其在线状态应返回与该设备实际连接状态一致的结果
+*对于任意*用户注册请求，系统生成的用户 ID 必须在整个系统中唯一。
 
-**验证: 需求 4.4**
+**Validates: Requirements 6.6**
 
-### 属性 8: STUN 优先于 TURN
+### Property 8: SSO 会话一致性
 
-*对于任意* NAT 穿透场景，系统应首先尝试使用 STUN 建立直连，只有在直连失败后才使用 TURN 中继
+*对于任意*用户登录操作，登录成功后应该能够访问所有关联服务；登出后，所有关联服务的会话应该同时终止。
 
-**验证: 需求 5.2, 5.3**
+**Validates: Requirements 6.3, 6.8**
 
-### 属性 9: 多候选路径选择
+### Property 9: RBAC 权限控制
 
-*对于任意* 连接建立过程，系统应测试所有可用的 ICE 候选路径，并选择延迟最低或质量最优的路径
+*对于任意*用户和资源访问请求，系统应该根据用户的角色正确授予或拒绝访问权限，权限检查结果应该与角色配置一致。
 
-**验证: 需求 5.5**
+**Validates: Requirements 6.7**
 
-### 属性 10: 访问码授权有效性
+### Property 10: 访问码有效性
 
-*对于任意* 有效的 Access_Code，使用该访问码的 Controller 应能成功连接到对应的 Controlled 设备
+*对于任意*有效的 Access_Code，在过期前使用应该能够成功建立连接；同一个访问码不应该被重复使用。
 
-**验证: 需求 6.2**
+**Validates: Requirements 7.2**
 
-### 属性 11: 设备绑定持久授权
+### Property 11: 输入事件延迟
 
-*对于任意* 绑定到用户账户的设备，该设备应能在后续会话中无需重新授权即可访问同一账户下的其他设备
+*对于任意*鼠标或键盘输入事件，从 Controller 发送到 Controlled 执行的延迟应该不超过 100ms。
 
-**验证: 需求 6.3**
+**Validates: Requirements 9.1, 9.2**
 
-### 属性 12: 连接请求响应处理
+### Property 12: 键盘布局正确性
 
-*对于任意* 连接请求，如果 Controlled 用户接受请求，则连接应建立；如果拒绝请求，则连接应被拒绝且 Controller 收到拒绝通知
+*对于任意*键盘输入事件和键盘布局组合，系统应该正确映射按键到目标系统的对应字符。
 
-**验证: 需求 6.5**
+**Validates: Requirements 9.5**
 
-### 属性 13: 访问码过期机制
+### Property 13: 双向文件传输
 
-*对于任意* Access_Code，在生成 10 分钟后，该访问码应自动失效且无法用于建立新连接
+*对于任意*文件，从 Controller 传输到 Controlled 后再传输回来，文件内容应该与原始文件完全一致（往返一致性）。
 
-**验证: 需求 6.7**
+**Validates: Requirements 10.1, 10.2**
 
-### 属性 14: 屏幕内容完整捕获
+### Property 14: 断点续传正确性
 
-*对于任意* 屏幕捕获操作，捕获的帧应包含当前显示器的完整可见内容
+*对于任意*文件传输，如果传输中断后恢复，最终传输完成的文件应该与原始文件完全一致。
 
-**验证: 需求 7.1**
+**Validates: Requirements 10.5**
 
-### 属性 15: 带宽自适应质量调整
+### Property 15: 文件传输加密
 
-*对于任意* 网络带宽下降事件，系统应自动降低视频分辨率或帧率以适应可用带宽
+*对于任意*文件传输，传输过程中的数据应该是加密的，无法被中间人读取明文内容。
 
-**验证: 需求 7.4**
+**Validates: Requirements 10.6**
 
-### 属性 16: 屏幕传输加密
+### Property 16: 会话记录完整性
 
-*对于任意* 屏幕内容传输，数据应在发送前进行加密，接收端应能解密并显示
+*对于任意*会话，系统应该记录会话的开始时间、结束时间、参与设备和断开原因，记录应该准确反映实际会话状态。
 
-**验证: 需求 7.6**
+**Validates: Requirements 11.1, 11.2**
 
-### 属性 17: 鼠标事件完整支持
+### Property 17: 会话历史保留
 
-*对于任意* 鼠标事件类型（移动、点击、滚轮、拖拽），Controller 发送的事件应在 Controlled 端正确执行
+*对于任意*会话记录，应该在系统中保留至少 30 天，30 天后可以被清理。
 
-**验证: 需求 8.3**
+**Validates: Requirements 11.5**
 
-### 属性 18: 键盘事件完整支持
+### Property 18: 传输加密
 
-*对于任意* 键盘事件类型（按键、组合键、特殊键），Controller 发送的事件应在 Controlled 端正确执行
+*对于任意* WebRTC 媒体流，应该使用 DTLS-SRTP 加密；对于任意信令通信，应该使用 TLS 1.3 加密；对于任意文件传输，应该使用端到端加密。
 
-**验证: 需求 8.4**
+**Validates: Requirements 12.1, 12.2, 12.3**
 
-### 属性 19: 键盘布局国际化支持
+### Property 19: 证书验证
 
-*对于任意* 键盘布局和语言输入，系统应正确处理并在 Controlled 端产生相同的输入结果
+*对于任意*连接建立，系统应该验证对端设备的证书，拒绝无效或不受信任的证书。
 
-**验证: 需求 8.5**
+**Validates: Requirements 12.4**
 
-### 属性 20: 双向文件传输
+### Property 20: 密钥轮换
 
-*对于任意* 文件，系统应支持从 Controller 到 Controlled 以及从 Controlled 到 Controller 的双向传输
+*对于任意*活动会话，会话密钥应该定期轮换，旧密钥应该被安全销毁。
 
-**验证: 需求 9.1, 9.2**
+**Validates: Requirements 12.5**
 
-### 属性 21: 文件传输进度准确性
+### Property 21: 日志记录完整性
 
-*对于任意* 文件传输，显示的传输进度百分比应与实际已传输字节数和文件总大小的比例一致
+*对于任意*连接建立、断开或错误事件，系统应该记录相应的日志条目，日志应该包含足够的信息用于问题诊断。
 
-**验证: 需求 9.4**
+**Validates: Requirements 16.1, 16.2**
 
-### 属性 22: 文件传输断点续传
+### Property 22: VM 状态变更
 
-*对于任意* 中断的文件传输，恢复传输时应从上次中断的位置继续，而不是重新开始
+*对于任意* VM 生命周期操作（启动、停止、重启、暂停、恢复），操作应该在 30 秒内完成，操作后 VM 状态应该正确反映操作结果。
 
-**验证: 需求 9.5**
+**Validates: Requirements 20.1, 20.2, 20.3, 20.4, 20.5, 20.6, 20.7**
 
-### 属性 23: 文件传输加密
+### Property 23: S3 API 兼容性
 
-*对于任意* 文件传输，文件数据应在传输前加密，接收端应能解密并恢复原始文件内容
+*对于任意* S3 标准 API 调用，MinIO 云存储应该返回与 AWS S3 兼容的响应。
 
-**验证: 需求 9.6**
+**Validates: Requirements 25.1**
 
-### 属性 24: 会话开始记录完整性
+### Property 24: 文件 CRUD 操作
 
-*对于任意* 建立的会话，系统应记录会话开始时间、Controller 设备 ID 和 Controlled 设备 ID
+*对于任意*文件或文件夹，创建后应该能够读取、更新和删除；删除后应该不再可访问（除非从回收站恢复）。
 
-**验证: 需求 10.1**
+**Validates: Requirements 25.4, 25.6**
 
-### 属性 25: 会话结束记录完整性
+### Property 25: 文件版本控制
 
-*对于任意* 结束的会话，系统应记录会话结束时间和断开原因
+*对于任意*文件上传操作，如果文件已存在，应该创建新版本而非覆盖旧版本；应该能够访问和恢复历史版本。
 
-**验证: 需求 10.2**
+**Validates: Requirements 26.2, 26.3, 26.4, 26.5**
 
-### 属性 26: 活动会话列表准确性
+### Property 26: 分享链接有效性
 
-*对于任意* 时刻，显示的活动会话列表应包含所有当前正在进行的会话，且不包含已结束的会话
+*对于任意*分享链接，在有效期内应该能够访问共享文件；过期后应该无法访问。
 
-**验证: 需求 10.3**
+**Validates: Requirements 25.8**
 
-### 属性 27: 会话主动断开
+### Property 27: 增量同步正确性
 
-*对于任意* 活动会话，用户执行断开操作后，会话应立即终止且双方设备都收到断开通知
+*对于任意*文件变更，同步引擎应该只传输变化的块；同步完成后，本地和远程文件应该完全一致。
 
-**验证: 需求 10.4**
+**Validates: Requirements 27.2, 27.3, 27.4**
 
-### 属性 28: 会话历史保留期限
+### Property 28: 冲突检测
 
-*对于任意* 会话记录，系统应保留最近 30 天内的记录，超过 30 天的记录应被自动清理
+*对于任意*双向同步场景，当本地和远程同时修改同一文件时，系统应该检测到冲突并正确标记。
 
-**验证: 需求 10.5**
+**Validates: Requirements 27.6**
 
-### 属性 29: 网络质量统计准确性
+### Property 29: 存储加密
 
-*对于任意* 活动会话，显示的网络质量统计（RTT、丢包率、码率等）应与实际测量值一致
+*对于任意*存储的文件，应该使用 AES-256 进行服务端加密；传输过程应该使用 TLS 1.3 加密。
 
-**验证: 需求 10.6, 12.1, 12.2, 12.3**
+**Validates: Requirements 30.1, 30.2, 30.3**
 
-### 属性 30: 端到端文件加密
+### Property 30: 自适应码率
 
-*对于任意* 文件传输，只有发送方和接收方能够解密文件内容，中间节点无法访问明文
+*对于任意*网络带宽变化，WebRTC 引擎应该自动调整视频码率以适应当前网络条件，避免卡顿或过度缓冲。
 
-**验证: 需求 11.3**
+**Validates: Requirements 2.6, 8.4**
 
-### 属性 31: 设备证书验证
+### Property 31: 帧率范围
 
-*对于任意* 连接尝试，如果对方设备提供的证书无效或不可信，系统应拒绝连接
+*对于任意*远程桌面会话，在网络条件允许的情况下，屏幕传输帧率应该保持在 30-60 FPS 范围内。
 
-**验证: 需求 11.4**
+**Validates: Requirements 8.3**
 
-### 属性 32: 会话密钥轮换
+### Property 32: 屏幕内容加密
 
-*对于任意* 长时间运行的会话，系统应定期生成新的会话密钥并替换旧密钥
+*对于任意*屏幕内容传输，数据应该在传输前加密，确保传输过程中的安全性。
 
-**验证: 需求 11.5**
-
-### 属性 33: 安全威胁响应
-
-*对于任意* 检测到的安全威胁（如中间人攻击、证书异常），系统应立即终止连接并通知用户
-
-**验证: 需求 11.6**
-
-### 属性 34: 编解码器信息准确性
-
-*对于任意* 活动会话，显示的当前使用编解码器信息应与 WebRTC 实际使用的编解码器一致
-
-**验证: 需求 12.4**
-
-### 属性 35: 连接类型判断准确性
-
-*对于任意* 活动会话，显示的连接类型（直连或中继）应与实际使用的连接路径类型一致
-
-**验证: 需求 12.5**
-
-### 属性 36: 网络质量警告阈值
-
-*对于任意* 活动会话，当网络质量指标（如 RTT、丢包率）超过预设阈值时，系统应显示警告
-
-**验证: 需求 12.6**
-
-### 属性 37: 配置文件生效
-
-*对于任意* 配置项，修改配置文件后重启应用，系统行为应按照新配置运行
-
-**验证: 需求 13.4**
-
-### 属性 38: 信令服务器故障转移
-
-*对于任意* 信令服务器实例故障，客户端应自动连接到其他可用实例并恢复服务
-
-**验证: 需求 14.4**
-
-### 属性 39: 连接事件日志记录
-
-*对于任意* 连接建立或断开事件，系统应在日志中记录事件类型、时间戳和相关设备信息
-
-**验证: 需求 15.1**
-
-### 属性 40: 错误异常日志记录
-
-*对于任意* 系统错误或异常，系统应在日志中记录错误类型、错误消息和堆栈跟踪
-
-**验证: 需求 15.2**
-
-### 属性 41: 日志级别过滤
-
-*对于任意* 配置的日志级别，系统应只记录该级别及更高优先级的日志消息
-
-**验证: 需求 15.3**
+**Validates: Requirements 8.6**
 
 ## 错误处理
 
-### 1. 连接错误
+### 连接错误
 
-**网络不可达**:
-- 检测: 连接超时或 ICE 收集失败
-- 处理: 显示网络错误提示，建议用户检查网络连接
-- 恢复: 提供重试按钮
+| 错误类型 | 错误码 | 处理策略 |
+|---------|--------|---------|
+| 设备离线 | E1001 | 提示用户设备不在线，建议稍后重试 |
+| 连接被拒绝 | E1002 | 提示用户连接请求被对方拒绝 |
+| 信令超时 | E1003 | 自动重试 3 次，失败后提示网络问题 |
+| ICE 失败 | E1004 | 尝试 TURN 中继，失败后提示 NAT 穿透失败 |
+| 认证失败 | E1005 | 提示用户重新登录 |
+| 访问码无效 | E1006 | 提示访问码错误或已过期 |
+| 会话超时 | E1007 | 自动重连，失败后提示会话已断开 |
 
-**信令服务器不可用**:
-- 检测: WebSocket 连接失败或心跳超时
-- 处理: 自动尝试连接到备用信令服务器
-- 恢复: 连接成功后恢复正常服务
+### VM 操作错误
 
-**NAT 穿透失败**:
-- 检测: 所有 ICE 候选都失败
-- 处理: 自动切换到 TURN 中继模式
-- 恢复: 使用 TURN 建立连接
+| 错误类型 | 错误码 | 处理策略 |
+|---------|--------|---------|
+| PVE 连接失败 | E2001 | 检查网络和认证信息 |
+| VM 不存在 | E2002 | 刷新 VM 列表 |
+| 操作超时 | E2003 | 重试操作，提示 PVE 服务器繁忙 |
+| 权限不足 | E2004 | 提示用户联系管理员 |
+| 资源不足 | E2005 | 提示 PVE 资源不足 |
 
-### 2. 认证错误
+### 存储错误
 
-**访问码无效**:
-- 检测: 访问码不存在或已过期
-- 处理: 显示"访问码无效或已过期"错误
-- 恢复: 提示用户获取新的访问码
+| 错误类型 | 错误码 | 处理策略 |
+|---------|--------|---------|
+| 存储配额超限 | E3001 | 提示用户清理文件或升级配额 |
+| 文件不存在 | E3002 | 刷新文件列表 |
+| 上传失败 | E3003 | 自动重试，支持断点续传 |
+| 下载失败 | E3004 | 自动重试，支持断点续传 |
+| 同步冲突 | E3005 | 提示用户选择解决方案 |
+| 版本不存在 | E3006 | 刷新版本列表 |
 
-**设备未授权**:
-- 检测: 设备不在授权列表中
-- 处理: 显示授权请求，等待被控端确认
-- 恢复: 被控端接受后建立连接
-
-**证书验证失败**:
-- 检测: TLS/DTLS 握手失败
-- 处理: 拒绝连接并记录安全事件
-- 恢复: 不允许恢复，需要解决证书问题
-
-### 3. 传输错误
-
-**视频编码失败**:
-- 检测: 编码器返回错误
-- 处理: 尝试切换到备用编解码器
-- 恢复: 使用备用编解码器继续传输
-
-**数据通道断开**:
-- 检测: 数据通道状态变为 closed
-- 处理: 尝试重新建立数据通道
-- 恢复: 重新建立后恢复文件传输和输入事件
-
-**文件传输失败**:
-- 检测: 传输超时或校验和不匹配
-- 处理: 保存传输进度，提示用户重试
-- 恢复: 使用断点续传从中断处继续
-
-### 4. 资源错误
-
-**屏幕捕获失败**:
-- 检测: 捕获 API 返回错误
-- 处理: 检查权限，提示用户授予屏幕录制权限
-- 恢复: 权限授予后重新开始捕获
-
-**内存不足**:
-- 检测: 内存分配失败
-- 处理: 降低视频质量，释放缓存
-- 恢复: 在较低质量下继续运行
-
-**CPU 过载**:
-- 检测: 编码延迟超过阈值
-- 处理: 降低帧率或分辨率
-- 恢复: 负载降低后恢复正常质量
-
-### 5. 错误码定义
+### 错误响应格式
 
 ```go
-const (
-    // 连接错误 (1xxx)
-    ErrNetworkUnreachable    = 1001
-    ErrSignalingUnavailable  = 1002
-    ErrNATTraversalFailed    = 1003
-    ErrConnectionTimeout     = 1004
-    
-    // 认证错误 (2xxx)
-    ErrInvalidAccessCode     = 2001
-    ErrDeviceUnauthorized    = 2002
-    ErrCertificateInvalid    = 2003
-    ErrAuthenticationFailed  = 2004
-    
-    // 传输错误 (3xxx)
-    ErrVideoEncodingFailed   = 3001
-    ErrDataChannelClosed     = 3002
-    ErrFileTransferFailed    = 3003
-    ErrChecksumMismatch      = 3004
-    
-    // 资源错误 (4xxx)
-    ErrScreenCaptureFailed   = 4001
-    ErrInsufficientMemory    = 4002
-    ErrCPUOverload           = 4003
-    ErrPermissionDenied      = 4004
-)
+// ErrorResponse 错误响应
+type ErrorResponse struct {
+    Code      string            `json:"code"`
+    Message   string            `json:"message"`
+    Details   map[string]string `json:"details,omitempty"`
+    Timestamp int64             `json:"timestamp"`
+    RequestID string            `json:"request_id"`
+}
 ```
 
 ## 测试策略
 
-### 1. 单元测试
+### 单元测试
 
-使用各平台的标准测试框架：
-- **C++**: Google Test (gtest)
-- **Go**: 内置 testing 包
-- **Swift**: XCTest
-- **Kotlin**: JUnit + Mockito
+- 测试各服务接口的核心逻辑
+- 测试数据模型的验证和序列化
+- 测试加密和安全相关功能
+- 测试错误处理逻辑
 
-**测试范围**:
-- 核心业务逻辑模块
-- 数据模型和序列化
-- 加密和安全模块
-- 协议编解码
-- 错误处理逻辑
+### 属性测试
 
-### 2. 属性测试
+使用 Go 的 `testing/quick` 或 `gopter` 库进行属性测试：
 
-使用属性测试库验证通用属性：
-- **C++**: RapidCheck
-- **Go**: gopter
-- **Swift**: SwiftCheck
-- **Kotlin**: KotlinTest Property Testing
+- **Property 1-2**: 测试 ID 生成和访问码过期
+- **Property 5**: 测试信令消息转发完整性
+- **Property 13-14**: 测试文件传输往返一致性
+- **Property 25-27**: 测试版本控制和增量同步
 
-**配置要求**:
-- 每个属性测试至少运行 100 次迭代
-- 每个测试必须引用设计文档中的属性编号
-- 标签格式: **Feature: remote-desktop-control, Property {number}: {property_text}**
+每个属性测试至少运行 100 次迭代。
 
-**测试重点**:
-- 网络协议的正确性（IPv4/IPv6 回退、NAT 穿透）
-- 加密和安全属性（密钥轮换、证书验证）
-- 会话管理属性（状态一致性、记录完整性）
-- 文件传输属性（断点续传、加密、进度准确性）
+### 集成测试
 
-### 3. 集成测试
+- 测试 WebRTC 连接建立流程
+- 测试 Keycloak 认证集成
+- 测试 PVE API 集成
+- 测试 MinIO 存储集成
 
-**WebRTC 集成测试**:
-- 测试 PeerConnection 建立流程
-- 测试媒体流传输
-- 测试数据通道通信
-- 测试编解码器切换
+### 端到端测试
 
-**信令服务集成测试**:
-- 测试设备注册和发现
-- 测试信令消息转发
-- 测试会话状态同步
-- 测试多实例负载均衡
-
-**端到端测试**:
 - 测试完整的远程控制流程
 - 测试文件传输流程
-- 测试多显示器场景
-- 测试网络切换场景
+- 测试 VM 管理流程
+- 测试云存储同步流程
 
-### 4. 性能测试
+### 性能测试
 
-**延迟测试**:
-- 测量端到端延迟（屏幕捕获 → 编码 → 传输 → 解码 → 显示）
-- 测量输入事件延迟
-- 目标: 总延迟 < 100ms
+- 测试信令服务器并发处理能力
+- 测试文件传输吞吐量
+- 测试 WebRTC 连接延迟
+- 测试存储服务响应时间
 
-**吞吐量测试**:
-- 测试最大并发会话数
-- 测试文件传输速度
-- 测试信令服务器 TPS
+### 安全测试
 
-**资源使用测试**:
-- 测量 CPU 使用率
-- 测量内存占用
-- 测量网络带宽使用
-
-### 5. 安全测试
-
-**渗透测试**:
-- 测试中间人攻击防护
-- 测试重放攻击防护
-- 测试未授权访问防护
-
-**加密测试**:
-- 验证所有传输都已加密
-- 验证密钥强度
-- 验证证书验证逻辑
-
-### 6. 兼容性测试
-
-**平台兼容性**:
-- 在所有支持的操作系统版本上测试
-- 测试不同平台之间的互操作性
-
-**网络兼容性**:
-- 测试不同 NAT 类型组合
-- 测试 IPv4/IPv6 混合网络
-- 测试弱网环境
-
-**浏览器兼容性** (如有 Web 版本):
-- 测试主流浏览器的 WebRTC 支持
-- 测试浏览器特定的 API 差异
-
-## 部署架构
-
-### 1. 服务器部署
-
-**推荐架构** (基于 Kubernetes):
-
-```yaml
-# 信令服务部署
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: signaling-server
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: signaling-server
-  template:
-    metadata:
-      labels:
-        app: signaling-server
-    spec:
-      containers:
-      - name: signaling
-        image: remote-desktop/signaling:latest
-        ports:
-        - containerPort: 8080
-        env:
-        - name: REDIS_URL
-          valueFrom:
-            secretKeyRef:
-              name: redis-secret
-              key: url
-        resources:
-          requests:
-            memory: "256Mi"
-            cpu: "500m"
-          limits:
-            memory: "512Mi"
-            cpu: "1000m"
-```
-
-**负载均衡**:
-- 使用 Nginx 或 HAProxy 作为 L7 负载均衡器
-- 支持 WebSocket 长连接
-- 配置健康检查和自动故障转移
-
-**TURN 服务器部署**:
-- 部署在多个地理位置以降低延迟
-- 使用 Anycast 路由到最近的服务器
-- 配置带宽限制和流量监控
-
-### 2. 数据库部署
-
-**PostgreSQL**:
-- 主从复制配置
-- 定期备份（每日全量 + 实时增量）
-- 连接池管理
-
-**Redis**:
-- 集群模式（至少 3 主 3 从）
-- 持久化配置（AOF + RDB）
-- 自动故障转移
-
-### 3. 监控和告警
-
-**监控指标**:
-- 服务健康状态
-- 活跃连接数
-- 信令消息吞吐量
-- TURN 流量使用
-- 数据库性能指标
-- 错误率和延迟
-
-**告警规则**:
-- 服务不可用
-- 错误率超过阈值
-- 延迟超过阈值
-- 资源使用率过高
-
-**工具**:
-- Prometheus (指标收集)
-- Grafana (可视化)
-- AlertManager (告警)
-- ELK Stack (日志分析)
-
-### 4. 客户端分发
-
-**桌面客户端**:
-- Windows: MSI 安装包，通过官网和 Microsoft Store 分发
-- macOS: DMG 安装包，通过官网和 Mac App Store 分发
-- Ubuntu: DEB/RPM 包，通过 PPA 和官网分发
-
-**移动客户端**:
-- iOS: 通过 App Store 分发
-- Android: 通过 Google Play 和官网 APK 分发
-
-**自动更新**:
-- 客户端启动时检查更新
-- 后台下载更新包
-- 提示用户安装更新
-- 支持增量更新以减少下载大小
-
-## 技术选型总结
-
-| 组件 | 技术选择 | 理由 |
-|------|---------|------|
-| 核心引擎 | C++ | 跨平台性能最优，便于集成 libwebrtc |
-| 信令服务 | Go | 高并发性能，简洁的并发模型 |
-| API 服务 | Go + Gin | 高性能，丰富的生态系统 |
-| 数据库 | PostgreSQL | 成熟稳定，支持复杂查询 |
-| 缓存 | Redis | 高性能，丰富的数据结构 |
-| 消息队列 | NATS | 轻量级，低延迟 |
-| WebRTC | libwebrtc | Google 官方实现，功能完整 |
-| 协议 | Protocol Buffers | 高效的二进制序列化 |
-| 加密 | DTLS-SRTP, TLS 1.3 | 行业标准，安全可靠 |
-| 容器化 | Docker + Kubernetes | 易于部署和扩展 |
-| 监控 | Prometheus + Grafana | 开源，功能强大 |
-
-## 开发路线图
-
-### 阶段 1: 基础架构 (4-6 周)
-- 搭建项目结构和构建系统
-- 实现核心抽象接口
-- 集成 libwebrtc
-- 实现基础的信令服务
-
-### 阶段 2: 核心功能 (8-10 周)
-- 实现屏幕捕获（各平台）
-- 实现远程输入控制
-- 实现 WebRTC 连接建立
-- 实现基础的用户界面
-
-### 阶段 3: 高级功能 (6-8 周)
-- 实现文件传输
-- 实现多显示器支持
-- 实现会话管理
-- 实现网络质量监控
-
-### 阶段 4: 安全和优化 (4-6 周)
-- 实现完整的加密方案
-- 实现认证和授权
-- 性能优化
-- 内存和 CPU 优化
-
-### 阶段 5: 测试和发布 (4-6 周)
-- 完整的测试覆盖
-- 修复 bug
-- 文档编写
-- 发布准备
-
-**总计**: 约 26-36 周（6-9 个月）
+- 测试加密实现的正确性
+- 测试认证和授权机制
+- 测试输入验证和防注入
+- 测试证书验证逻辑
