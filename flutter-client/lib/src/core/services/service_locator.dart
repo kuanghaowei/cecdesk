@@ -1,0 +1,44 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'authentication_service.dart';
+import 'device_management_service.dart';
+import 'consent_service.dart';
+import 'secure_storage_service.dart';
+
+/// Service locator for dependency injection using Riverpod
+/// Provides centralized access to all core services
+
+// Secure storage service provider
+final secureStorageServiceProvider = Provider<SecureStorageService>((ref) {
+  return SecureStorageService();
+});
+
+// Consent service provider
+final consentServiceProvider = Provider<ConsentService>((ref) {
+  final secureStorage = ref.watch(secureStorageServiceProvider);
+  return ConsentService(secureStorage: secureStorage);
+});
+
+// Authentication service provider
+final authenticationServiceProvider = Provider<AuthenticationService>((ref) {
+  final secureStorage = ref.watch(secureStorageServiceProvider);
+  return AuthenticationService(secureStorage: secureStorage);
+});
+
+// Device management service provider
+final deviceManagementServiceProvider = Provider<DeviceManagementService>((ref) {
+  final secureStorage = ref.watch(secureStorageServiceProvider);
+  return DeviceManagementService(secureStorage: secureStorage);
+});
+
+// Authentication state provider
+final authStateProvider = StateNotifierProvider<AuthStateNotifier, AuthState>((ref) {
+  final authService = ref.watch(authenticationServiceProvider);
+  return AuthStateNotifier(authService);
+});
+
+// Consent state provider
+final consentStateProvider = StateNotifierProvider<ConsentStateNotifier, ConsentState>((ref) {
+  final consentService = ref.watch(consentServiceProvider);
+  return ConsentStateNotifier(consentService);
+});
