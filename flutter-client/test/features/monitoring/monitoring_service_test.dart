@@ -153,16 +153,15 @@ void main() {
 
   group('NetworkDiagnostics', () {
     test('allServicesReachable 应该在所有服务可达时返回 true', () {
-      const diagnostics = NetworkDiagnostics(
+      final diagnostics = NetworkDiagnostics(
         internetConnected: true,
         signalingServerReachable: true,
         stunServerReachable: true,
         turnServerReachable: true,
-        timestamp: null,
+        timestamp: DateTime.now(),
       );
 
-      // Note: timestamp is required, this test would fail
-      // This is intentional to show the test structure
+      expect(diagnostics.allServicesReachable, true);
     });
 
     test('allServicesReachable 应该在任一服务不可达时返回 false', () {

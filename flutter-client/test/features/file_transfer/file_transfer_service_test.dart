@@ -12,7 +12,17 @@ void main() {
       fileTransferService = container.read(fileTransferServiceProvider.notifier);
     });
 
-    tearDown(() {
+    tearDown(() async {
+      // Cancel all active transfers before disposing to avoid async issues
+      final state = container.read(fileTransferServiceProvider);
+      for (final transfer in state.transfers) {
+        if (transfer.status == TransferStatus.inProgress || 
+            transfer.status == TransferStatus.paused) {
+          fileTransferService.cancelTransfer(transfer.id);
+        }
+      }
+      // Small delay to allow async operations to complete
+      await Future.delayed(const Duration(milliseconds: 100));
       container.dispose();
     });
 
