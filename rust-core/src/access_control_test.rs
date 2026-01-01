@@ -1,0 +1,335 @@
+//! Property-based tests for Access Control
+//! 
+//! Feature: remote-desktop-client
+//! Property 7: 访问码过期机制 - Access codes should expire after 10 minutes
+//! Validates: Requirements 5.7
+
+use proptest::prelude::*;
+use std::time::{Duration, Instant};
+use crate::access_control::{
+    AccessCode, AccessControlManager, Permission, ACCESS_CODE_EXPIRATION_SECS,
+};
+
+/// Strategy for generating random permissions
+fn permission_strategy() -> impl Strategy<Value = Permission> {
+    prop_oneof![
+        Just(Permission::ViewScreen),
+        Just(Permission::InputControl),
+        Just(Permission::FileTransfer),
+        Just(Permission::Clipboard),
+        Just(Permission::AudioCapture),
+        Just(Permission::FullControl),
+    ]
+}
+
+/// Strategy for generating a list of permissions
+fn permissions_list_strategy() -> impl Strategy<Value = Vec<Permission>> {
+    prop::collection::vec(permission_strategy(), 1..6)
+}
+
+/// Strategy for generating random device names
+fn device_name_strategy() -> impl Strategy<Value = String> {
+    "[a-zA-Z0-9_-]{1,50}".prop_map(|s| s)
+}
+
+/// Strategy for generating random platform names
+fn platform_strategy() -> impl Strategy<Value = String> {
+    prop_oneof![
+        Just("windows".to_string()),
+        Just("macos".to_string()),
+        Just("linux".to_string()),
+        Just("ios".to_string()),
+        Just("android".to_string()),
+        Just("harmonyos".to_string()),
+    ]
+}
+
+/// Strategy for generating random version strings
+fn version_strategy() -> impl Strategy<Value = String> {
+    (1u32..100, 0u32..100, 0u32..1000)
+        .prop_map(|(major, minor, patch)| format!("{}.{}.{}", major, minor, patch))
+}
+
+/// Strategy for generating elapsed time in seconds
+fn elapsed_seconds_strategy() -> impl Strategy<Value = u64> {
+    0u64..1200 // 0 to 20 minutes
+}
+
+proptest! {
+    /// Feature: remote-desktop-client, Property 7: 访问码过期机制
+    /// For any access code, it should be expired after 10 minutes (600 seconds)
+    /// Validates: Requirements 5.7
+    #![proptest_config(ProptestConfig::with_cases(100))]
+    #[test]
+    fn prop_access_code_expires_after_10_minutes(
+        elapsed_secs in elapsed_seconds_strategy(),
+        permissions in permissions_list_strategy()
+    ) {
+        // Create an access code with a specific elapsed time
+        let created_at = Instant::now() - Duration::from_secs(elapsed_secs);
+        
+        let code = AccessCode {
+            code: "123456".to_string(),
+            device_id: "test-device".to_string(),
+            created_at,
+            expires_in: Duration::from_secs(ACCESS_CODE_EXPIRATION_SECS),
+            permissions,
+            used: false,
+        };
+        
+        // Property: code is expired if and only if elapsed time >= 600 seconds
+        let expected_expired = elapsed_secs >= ACCESS_CODE_EXPIRATION_SECS;
+        prop_assert_eq!(code.is_expired(), expected_expired,
+            "Access code expiration mismatch: elapsed={}s, expected_expired={}, actual_expired={}",
+            elapsed_secs, expected_expired, code.is_expired());
+    }
+
+    /// Feature: remote-desktop-client, Property 7: 访问码过期机制
+    /// For any access code, remaining_seconds should be correct
+    /// Validates: Requirements 5.7
+    #[test]
+    fn prop_access_code_remaining_seconds(
+        elapsed_secs in 0u64..700,
+        permissions in permissions_list_strategy()
+    ) {
+        let created_at = Instant::now() - Duration::from_secs(elapsed_secs);
+        
+        let code = AccessCode {
+            code: "123456".to_string(),
+            device_id: "test-device".to_string(),
+            created_at,
+            expires_in: Duration::from_secs(ACCESS_CODE_EXPIRATION_SECS),
+            permissions,
+            used: false,
+        };
+        
+        let remaining = code.remaining_seconds();
+        
+        if elapsed_secs >= ACCESS_CODE_EXPIRATION_SECS {
+            // Should be 0 if expired
+            prop_assert_eq!(remaining, 0,
+                "Expired code should have 0 remaining seconds");
+        } else {
+            // Should be approximately (600 - elapsed) seconds
+            // Allow 2 second tolerance for test execution time
+            let expected = ACCESS_CODE_EXPIRATION_SECS - elapsed_secs;
+            prop_assert!(remaining <= expected + 2 && remaining >= expected.saturating_sub(2),
+                "Remaining seconds mismatch: expected ~{}, got {}", expected, remaining);
+        }
+    }
+
+    /// Feature: remote-desktop-client, Property 7: 访问码过期机制
+    /// For any access code, is_valid should return false if expired or used
+    /// Validates: Requirements 5.7
+    #[test]
+    fn prop_access_code_validity(
+        elapsed_secs in elapsed_seconds_strategy(),
+        used in any::<bool>(),
+        permissions in permissions_list_strategy()
+    ) {
+        let created_at = Instant::now() - Duration::from_secs(elapsed_secs);
+        
+        let code = AccessCode {
+            code: "123456".to_string(),
+            device_id: "test-device".to_string(),
+            created_at,
+            expires_in: Duration::from_secs(ACCESS_CODE_EXPIRATION_SECS),
+            permissions,
+            used,
+        };
+        
+        let is_expired = elapsed_secs >= ACCESS_CODE_EXPIRATION_SECS;
+        let expected_valid = !is_expired && !used;
+        
+        prop_assert_eq!(code.is_valid(), expected_valid,
+            "Validity mismatch: expired={}, used={}, expected_valid={}, actual_valid={}",
+            is_expired, used, expected_valid, code.is_valid());
+    }
+
+    /// Feature: remote-desktop-client, Property 6: 设备 ID 唯一性
+    /// Device IDs generated by AccessControlManager should be unique
+    /// Validates: Requirements 5.1
+    #[test]
+    fn prop_device_id_uniqueness_from_manager(count in 10usize..50) {
+        use std::collections::HashSet;
+        
+        let mut ids = HashSet::new();
+        
+        for _ in 0..count {
+            let id = AccessControlManager::generate_device_id();
+            prop_assert!(ids.insert(id.clone()),
+                "Generated duplicate device ID: {}", id);
+        }
+        
+        prop_assert_eq!(ids.len(), count);
+    }
+
+    /// Feature: remote-desktop-client, Property 7: 访问码过期机制
+    /// Access codes should have correct expiration duration constant
+    /// Validates: Requirements 5.7
+    #[test]
+    fn prop_access_code_expiration_constant(_seed in any::<u64>()) {
+        // The expiration constant should be exactly 600 seconds (10 minutes)
+        prop_assert_eq!(ACCESS_CODE_EXPIRATION_SECS, 600,
+            "Access code expiration should be 600 seconds (10 minutes)");
+    }
+
+    /// Feature: remote-desktop-client, Property 7: 访问码过期机制
+    /// Newly created access codes should not be expired
+    /// Validates: Requirements 5.7
+    #[test]
+    fn prop_new_access_code_not_expired(permissions in permissions_list_strategy()) {
+        let code = AccessCode {
+            code: "123456".to_string(),
+            device_id: "test-device".to_string(),
+            created_at: Instant::now(),
+            expires_in: Duration::from_secs(ACCESS_CODE_EXPIRATION_SECS),
+            permissions,
+            used: false,
+        };
+        
+        prop_assert!(!code.is_expired(),
+            "Newly created access code should not be expired");
+        prop_assert!(code.is_valid(),
+            "Newly created access code should be valid");
+    }
+
+    /// Feature: remote-desktop-client, Property 7: 访问码过期机制
+    /// Access codes created more than 10 minutes ago should be expired
+    /// Validates: Requirements 5.7
+    #[test]
+    fn prop_old_access_code_expired(
+        extra_secs in 1u64..600,
+        permissions in permissions_list_strategy()
+    ) {
+        // Create code that is (600 + extra_secs) seconds old
+        let elapsed = ACCESS_CODE_EXPIRATION_SECS + extra_secs;
+        let created_at = Instant::now() - Duration::from_secs(elapsed);
+        
+        let code = AccessCode {
+            code: "123456".to_string(),
+            device_id: "test-device".to_string(),
+            created_at,
+            expires_in: Duration::from_secs(ACCESS_CODE_EXPIRATION_SECS),
+            permissions,
+            used: false,
+        };
+        
+        prop_assert!(code.is_expired(),
+            "Access code created {} seconds ago should be expired", elapsed);
+        prop_assert!(!code.is_valid(),
+            "Expired access code should not be valid");
+    }
+}
+
+#[cfg(test)]
+mod unit_tests {
+    use super::*;
+
+    #[test]
+    fn test_permission_expand_full_control() {
+        let permissions = Permission::expand_full_control();
+        assert_eq!(permissions.len(), 5);
+        assert!(permissions.contains(&Permission::ViewScreen));
+        assert!(permissions.contains(&Permission::InputControl));
+        assert!(permissions.contains(&Permission::FileTransfer));
+        assert!(permissions.contains(&Permission::Clipboard));
+        assert!(permissions.contains(&Permission::AudioCapture));
+    }
+
+    #[test]
+    fn test_access_code_expiration_boundary() {
+        // Test exactly at 600 seconds
+        let code = AccessCode {
+            code: "123456".to_string(),
+            device_id: "test-device".to_string(),
+            created_at: Instant::now() - Duration::from_secs(600),
+            expires_in: Duration::from_secs(600),
+            permissions: vec![Permission::ViewScreen],
+            used: false,
+        };
+        
+        // At exactly 600 seconds, it should be expired
+        assert!(code.is_expired());
+    }
+
+    #[test]
+    fn test_access_code_just_before_expiration() {
+        // Test at 599 seconds
+        let code = AccessCode {
+            code: "123456".to_string(),
+            device_id: "test-device".to_string(),
+            created_at: Instant::now() - Duration::from_secs(599),
+            expires_in: Duration::from_secs(600),
+            permissions: vec![Permission::ViewScreen],
+            used: false,
+        };
+        
+        // At 599 seconds, it should not be expired yet
+        assert!(!code.is_expired());
+        assert!(code.is_valid());
+    }
+
+    #[tokio::test]
+    async fn test_access_control_manager_register_device() {
+        let manager = AccessControlManager::new();
+        
+        let device_id = manager.register_device(
+            "Test Device".to_string(),
+            "linux".to_string(),
+            "1.0.0".to_string(),
+        ).await.unwrap();
+        
+        assert!(!device_id.is_empty());
+        assert_eq!(device_id.len(), 36); // UUID format
+        
+        let stored_id = manager.get_device_id().await;
+        assert_eq!(stored_id, Some(device_id));
+    }
+
+    #[tokio::test]
+    async fn test_access_control_manager_generate_access_code() {
+        let manager = AccessControlManager::new();
+        
+        // Register device first
+        manager.register_device(
+            "Test Device".to_string(),
+            "linux".to_string(),
+            "1.0.0".to_string(),
+        ).await.unwrap();
+        
+        // Generate access code
+        let code = manager.generate_access_code(vec![Permission::ViewScreen])
+            .await
+            .unwrap();
+        
+        assert!(!code.code.is_empty());
+        assert!(code.is_valid());
+        assert!(!code.is_expired());
+    }
+
+    #[tokio::test]
+    async fn test_access_control_manager_validate_access_code() {
+        let manager = AccessControlManager::new();
+        
+        // Register device first
+        manager.register_device(
+            "Test Device".to_string(),
+            "linux".to_string(),
+            "1.0.0".to_string(),
+        ).await.unwrap();
+        
+        // Generate access code
+        let code = manager.generate_access_code(vec![Permission::ViewScreen])
+            .await
+            .unwrap();
+        
+        // Validate the code
+        let validated = manager.validate_access_code(&code.code).await.unwrap();
+        assert!(validated.is_some());
+        
+        // Invalid code should return None
+        let invalid = manager.validate_access_code("000000").await.unwrap();
+        assert!(invalid.is_none());
+    }
+}

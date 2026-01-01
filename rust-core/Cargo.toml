@@ -30,6 +30,11 @@ uuid = { version = "1.0", features = ["v4"] }
 url = "2.0"
 chrono = { version = "0.4", features = ["serde"] }
 
+# WebSocket
+tokio-tungstenite = { version = "0.21", features = ["native-tls"] }
+futures-util = "0.3"
+futures = "0.3"
+
 # Media processing
 image = "0.24"
 bytes = "1.0"
