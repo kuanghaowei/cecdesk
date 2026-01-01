@@ -115,8 +115,8 @@ pub struct NetworkManager {
     preferred_protocol: Arc<RwLock<NetworkProtocol>>,
     stun_servers: Arc<RwLock<Vec<StunServer>>>,
     turn_servers: Arc<RwLock<Vec<TurnServer>>>,
-    current_stats: Arc<RwLock<NetworkStats>>,
-    stats_history: Arc<Mutex<Vec<NetworkStats>>>,
+    pub current_stats: Arc<RwLock<NetworkStats>>,
+    pub stats_history: Arc<Mutex<Vec<NetworkStats>>>,
     event_sender: mpsc::UnboundedSender<NetworkEvent>,
     event_receiver: Arc<Mutex<mpsc::UnboundedReceiver<NetworkEvent>>>,
     ice_candidates: Arc<Mutex<Vec<IceCandidate>>>,
@@ -551,7 +551,7 @@ impl NetworkManager {
         Ok(stats)
     }
 
-    fn calculate_quality(stats: &NetworkStats) -> NetworkQuality {
+    pub fn calculate_quality(stats: &NetworkStats) -> NetworkQuality {
         if stats.rtt < 50 && stats.packet_loss < 1.0 {
             NetworkQuality::Excellent
         } else if stats.rtt < 100 && stats.packet_loss < 3.0 {

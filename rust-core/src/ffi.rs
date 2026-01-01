@@ -36,7 +36,12 @@ pub struct CNetworkStats {
 // WebRTC Engine FFI functions
 #[no_mangle]
 pub extern "C" fn webrtc_engine_create() -> WebRTCEngineHandle {
-    match WebRTCEngine::new() {
+    let rt = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(_) => return std::ptr::null_mut(),
+    };
+    
+    match rt.block_on(WebRTCEngine::new()) {
         Ok(engine) => Box::into_raw(Box::new(engine)) as WebRTCEngineHandle,
         Err(_) => std::ptr::null_mut(),
     }
@@ -72,6 +77,8 @@ pub extern "C" fn webrtc_engine_create_peer_connection(
         let config = RTCConfiguration {
             ice_servers: vec![],
             ice_transport_policy: "all".to_string(),
+            bundle_policy: None,
+            rtcp_mux_policy: None,
         };
 
         match tokio::runtime::Runtime::new().unwrap().block_on(engine.create_peer_connection(config)) {

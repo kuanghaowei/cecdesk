@@ -142,7 +142,8 @@ impl WebRTCEngine {
                 let new_state = RTCPeerConnectionState::from(state);
                 
                 // Update connection state
-                if let Ok(mut conns) = connections.lock().await {
+                {
+                    let mut conns = connections.lock().await;
                     if let Some(conn_info) = conns.get_mut(&connection_id) {
                         conn_info.state = new_state.clone();
                     }
@@ -237,7 +238,15 @@ impl WebRTCEngine {
         let connection_info = connections.get(connection_id)
             .ok_or_else(|| anyhow::anyhow!("Connection not found: {}", connection_id))?;
         
-        connection_info.peer_connection.add_ice_candidate(candidate).await?;
+        // Convert RTCIceCandidate to RTCIceCandidateInit
+        let candidate_init = webrtc::ice_transport::ice_candidate::RTCIceCandidateInit {
+            candidate: candidate.to_json()?.candidate,
+            sdp_mid: candidate.to_json()?.sdp_mid,
+            sdp_mline_index: candidate.to_json()?.sdp_mline_index,
+            username_fragment: candidate.to_json()?.username_fragment,
+        };
+        
+        connection_info.peer_connection.add_ice_candidate(candidate_init).await?;
         tracing::info!("Added ICE candidate for connection {}", connection_id);
         Ok(())
     }
@@ -281,7 +290,7 @@ impl WebRTCEngine {
     }
 
     fn convert_config(&self, config: RTCConfiguration) -> Result<WebRTCConfig> {
-        let ice_servers: Result<Vec<RTCIceServer>, _> = config.ice_servers
+        let ice_servers: Vec<RTCIceServer> = config.ice_servers
             .into_iter()
             .map(|server| {
                 RTCIceServer {
@@ -291,10 +300,10 @@ impl WebRTCEngine {
                     credential_type: Default::default(),
                 }
             })
-            .collect::<Result<Vec<_>, _>>();
+            .collect();
 
         Ok(WebRTCConfig {
-            ice_servers: ice_servers?,
+            ice_servers,
             ..Default::default()
         })
     }
@@ -342,5 +351,5 @@ pub struct ConnectionStats {
     pub rtt: f64, // Round trip time in milliseconds
 }
 
-#[cfg(test)]
-mod webrtc_engine_test;
+// Tests are in a separate file: webrtc_engine_test.rs
+// They are included via lib.rs

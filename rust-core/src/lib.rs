@@ -15,6 +15,15 @@ mod signaling_test;
 #[cfg(test)]
 mod access_control_test;
 
+#[cfg(test)]
+mod network_test;
+
+#[cfg(test)]
+mod screen_capture_test;
+
+#[cfg(test)]
+mod webrtc_engine_test;
+
 pub use webrtc_engine::{WebRTCEngine, RTCConfiguration, IceServer, RTCPeerConnectionState, WebRTCEvent, MediaStream, MediaTrack, ConnectionStats};
 pub use signaling::{SignalingClient, SignalingMessage, SignalingEvent, DeviceInfo, DeviceCapabilities, DeviceStatus, SignalingMetrics, generate_device_id};
 pub use access_control::{AccessControlManager, AccessCode, Permission, AuthorizationType, DeviceAuthorization, ConnectionRequest, ConnectionResponse, DeviceRegistration, ACCESS_CODE_EXPIRATION_SECS};

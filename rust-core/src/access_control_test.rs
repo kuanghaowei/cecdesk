@@ -27,39 +27,17 @@ fn permissions_list_strategy() -> impl Strategy<Value = Vec<Permission>> {
     prop::collection::vec(permission_strategy(), 1..6)
 }
 
-/// Strategy for generating random device names
-fn device_name_strategy() -> impl Strategy<Value = String> {
-    "[a-zA-Z0-9_-]{1,50}".prop_map(|s| s)
-}
-
-/// Strategy for generating random platform names
-fn platform_strategy() -> impl Strategy<Value = String> {
-    prop_oneof![
-        Just("windows".to_string()),
-        Just("macos".to_string()),
-        Just("linux".to_string()),
-        Just("ios".to_string()),
-        Just("android".to_string()),
-        Just("harmonyos".to_string()),
-    ]
-}
-
-/// Strategy for generating random version strings
-fn version_strategy() -> impl Strategy<Value = String> {
-    (1u32..100, 0u32..100, 0u32..1000)
-        .prop_map(|(major, minor, patch)| format!("{}.{}.{}", major, minor, patch))
-}
-
 /// Strategy for generating elapsed time in seconds
 fn elapsed_seconds_strategy() -> impl Strategy<Value = u64> {
     0u64..1200 // 0 to 20 minutes
 }
 
 proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
     /// Feature: remote-desktop-client, Property 7: 访问码过期机制
     /// For any access code, it should be expired after 10 minutes (600 seconds)
     /// Validates: Requirements 5.7
-    #![proptest_config(ProptestConfig::with_cases(100))]
     #[test]
     fn prop_access_code_expires_after_10_minutes(
         elapsed_secs in elapsed_seconds_strategy(),

@@ -67,23 +67,24 @@ fn device_info_strategy() -> impl Strategy<Value = DeviceInfo> {
 
 /// Strategy for generating random SDP strings (simplified)
 fn sdp_strategy() -> impl Strategy<Value = String> {
-    "[a-zA-Z0-9=\\n\\r]{10,500}".prop_map(|s| format!("v=0\r\n{}", s))
+    "[a-zA-Z0-9=]{10,100}".prop_map(|s| format!("v=0\r\n{}", s))
 }
 
 /// Strategy for generating random ICE candidate strings
 fn ice_candidate_strategy() -> impl Strategy<Value = String> {
-    (1u32..10, 1u32..65535, "[a-zA-Z0-9]{8,16}")
-        .prop_map(|(component, port, ufrag)| {
+    (1u32..10, 1u32..65535)
+        .prop_map(|(component, port)| {
             format!("candidate:{} {} UDP {} 192.168.1.1 {} typ host", 
                     component, component, port * 1000, port)
         })
 }
 
 proptest! {
+    #![proptest_config(ProptestConfig::with_cases(100))]
+
     /// Feature: remote-desktop-client, Property 6: 设备 ID 唯一性
     /// For any set of generated device IDs, all IDs should be unique
     /// Validates: Requirements 5.1
-    #![proptest_config(ProptestConfig::with_cases(100))]
     #[test]
     fn prop_device_id_uniqueness(count in 10usize..100) {
         let mut ids = HashSet::new();

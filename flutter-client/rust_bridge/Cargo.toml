@@ -1,0 +1,11 @@
+[package]
+name = "rust_bridge"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+remote-desktop-core = { path = "../../rust-core" }
+
+[lib]
+name = "rust_bridge"
+crate-type = ["cdylib", "rlib"]

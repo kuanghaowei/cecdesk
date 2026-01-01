@@ -115,7 +115,7 @@ pub struct DeviceAuthorization {
 }
 
 /// Connection request from a remote device
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone)]
 pub struct ConnectionRequest {
     /// Request ID
     pub request_id: String,

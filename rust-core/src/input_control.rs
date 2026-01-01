@@ -102,8 +102,8 @@ impl InputController {
     }
 
     pub fn set_keyboard_layout(&mut self, layout: KeyboardLayout) {
-        self.keyboard_layout = layout;
         tracing::info!("Set keyboard layout to: {:?}", layout);
+        self.keyboard_layout = layout;
     }
 
     pub fn detect_keyboard_layout(&self) -> KeyboardLayout {
