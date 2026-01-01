@@ -37,6 +37,12 @@ bytes = "1.0"
 # FFI support
 cxx = "1.0"
 
+# Testing
+proptest = { version = "1.0", optional = true }
+
+[dev-dependencies]
+proptest = "1.0"
+
 [lib]
 name = "remote_desktop_core"
 crate-type = ["cdylib", "rlib"]

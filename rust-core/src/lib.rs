@@ -8,9 +8,9 @@ pub mod security;
 pub mod network;
 pub mod ffi;
 
-pub use webrtc_engine::WebRTCEngine;
+pub use webrtc_engine::{WebRTCEngine, RTCConfiguration, IceServer, RTCPeerConnectionState, WebRTCEvent, MediaStream, MediaTrack, ConnectionStats};
 pub use signaling::SignalingClient;
-pub use screen_capture::ScreenCapturer;
+pub use screen_capture::{ScreenCapturer, AudioCapturer, DisplayInfo, CaptureOptions, VideoCodecType, QualityPreset, VideoFrame, AudioFrame, AudioCaptureOptions, NetworkConditions, AdaptiveBitrateConfig};
 pub use input_control::InputController;
 pub use file_transfer::FileTransfer;
 pub use session_manager::SessionManager;
