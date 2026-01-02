@@ -4,6 +4,7 @@ import 'authentication_service.dart';
 import 'device_management_service.dart';
 import 'consent_service.dart';
 import 'secure_storage_service.dart';
+import 'session_management_service.dart';
 
 /// Service locator for dependency injection using Riverpod
 /// Provides centralized access to all core services
@@ -42,3 +43,6 @@ final consentStateProvider = StateNotifierProvider<ConsentStateNotifier, Consent
   final consentService = ref.watch(consentServiceProvider);
   return ConsentStateNotifier(consentService);
 });
+
+// Session management service provider (re-exported from session_management_service.dart)
+// Use sessionManagementServiceProvider from session_management_service.dart directly

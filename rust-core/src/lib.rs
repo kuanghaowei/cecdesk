@@ -8,6 +8,8 @@ pub mod security;
 pub mod network;
 pub mod access_control;
 pub mod ffi;
+pub mod logging;
+pub mod diagnostics;
 
 #[cfg(test)]
 mod signaling_test;
@@ -27,13 +29,18 @@ mod webrtc_engine_test;
 #[cfg(test)]
 mod security_test;
 
+#[cfg(test)]
+mod logging_test;
+
 pub use webrtc_engine::{WebRTCEngine, RTCConfiguration, IceServer, RTCPeerConnectionState, WebRTCEvent, MediaStream, MediaTrack, ConnectionStats};
 pub use signaling::{SignalingClient, SignalingMessage, SignalingEvent, DeviceInfo, DeviceCapabilities, DeviceStatus, SignalingMetrics, generate_device_id};
 pub use access_control::{AccessControlManager, AccessCode, Permission, AuthorizationType, DeviceAuthorization, ConnectionRequest, ConnectionResponse, DeviceRegistration, ACCESS_CODE_EXPIRATION_SECS};
 pub use screen_capture::{ScreenCapturer, AudioCapturer, DisplayInfo, CaptureOptions, VideoCodecType, QualityPreset, VideoFrame, AudioFrame, AudioCaptureOptions, NetworkConditions, AdaptiveBitrateConfig};
 pub use input_control::InputController;
 pub use file_transfer::FileTransfer;
-pub use session_manager::SessionManager;
+pub use session_manager::{SessionManager, Session, SessionStatus, SessionStats, SessionOptions, SessionRecord, Permission as SessionPermission, ConnectionQuality, ConnectionType, EndReason, PermissionRequest, SessionEvent, SessionSummaryStats};
+pub use logging::{LogManager, LogEntry, LogLevel, LogConfig, ConnectionEvent, ConnectionEventType};
+pub use diagnostics::{DiagnosticsManager, NetworkDiagnostics, SystemDiagnostics, NatType, ServerStatus, DiagnosticStatus};
 pub use security::{SecurityManager, SecurityConfig, DeviceCertificate, SecurityThreat, EncryptedData, EncryptionAlgorithm, DtlsSrtpConfig, TlsConfig, SessionKey, SecurityEvent, SecurityEventType, CertificateValidationResult, CertificateValidationError, KeyRotationConfig, ThreatDetectionConfig, ReplayDetectionState, FailedAttemptTracker};
 
 // Re-export common types
