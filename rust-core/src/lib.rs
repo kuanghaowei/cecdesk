@@ -24,6 +24,9 @@ mod screen_capture_test;
 #[cfg(test)]
 mod webrtc_engine_test;
 
+#[cfg(test)]
+mod security_test;
+
 pub use webrtc_engine::{WebRTCEngine, RTCConfiguration, IceServer, RTCPeerConnectionState, WebRTCEvent, MediaStream, MediaTrack, ConnectionStats};
 pub use signaling::{SignalingClient, SignalingMessage, SignalingEvent, DeviceInfo, DeviceCapabilities, DeviceStatus, SignalingMetrics, generate_device_id};
 pub use access_control::{AccessControlManager, AccessCode, Permission, AuthorizationType, DeviceAuthorization, ConnectionRequest, ConnectionResponse, DeviceRegistration, ACCESS_CODE_EXPIRATION_SECS};
@@ -31,6 +34,7 @@ pub use screen_capture::{ScreenCapturer, AudioCapturer, DisplayInfo, CaptureOpti
 pub use input_control::InputController;
 pub use file_transfer::FileTransfer;
 pub use session_manager::SessionManager;
+pub use security::{SecurityManager, SecurityConfig, DeviceCertificate, SecurityThreat, EncryptedData, EncryptionAlgorithm, DtlsSrtpConfig, TlsConfig, SessionKey, SecurityEvent, SecurityEventType, CertificateValidationResult, CertificateValidationError, KeyRotationConfig, ThreatDetectionConfig, ReplayDetectionState, FailedAttemptTracker};
 
 // Re-export common types
 pub use crate::ffi::*;
