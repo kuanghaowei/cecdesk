@@ -1,0 +1,95 @@
+name: Nightly Build
+
+on:
+  schedule:
+    # 每天 UTC 时间 2:00 运行 (北京时间 10:00)
+    - cron: '0 2 * * *'
+  workflow_dispatch:  # 允许手动触发
+
+env:
+  FLUTTER_VERSION: '3.16.0'
+  RUST_VERSION: 'stable'
+
+jobs:
+  nightly-build:
+    name: Nightly Build - ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android
+            os: ubuntu-latest
+            build-cmd: flutter build apk --release
+            artifact-path: flutter-client/build/app/outputs/flutter-apk/app-release.apk
+          - platform: web
+            os: ubuntu-latest
+            build-cmd: flutter build web --release
+            artifact-path: flutter-client/build/web/
+          - platform: linux
+            os: ubuntu-latest
+            build-cmd: flutter build linux --release
+            artifact-path: flutter-client/build/linux/x64/release/bundle/
+          - platform: windows
+            os: windows-latest
+            build-cmd: flutter build windows --release
+            artifact-path: flutter-client/build/windows/x64/runner/Release/
+          - platform: macos
+            os: macos-latest
+            build-cmd: flutter build macos --release
+            artifact-path: flutter-client/build/macos/Build/Products/Release/
+    
+    defaults:
+      run:
+        working-directory: flutter-client
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Linux dependencies
+        if: matrix.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev
+        working-directory: .
+      
+      - name: Setup Java (Android)
+        if: matrix.platform == 'android'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+      
+      - name: Install dependencies
+        run: flutter pub get
+      
+      - name: Build
+        run: ${{ matrix.build-cmd }}
+      
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-${{ matrix.platform }}-${{ github.run_number }}
+          path: ${{ matrix.artifact-path }}
+          retention-days: 7
+
+  rust-nightly:
+    name: Rust Nightly Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust nightly
+        uses: dtolnay/rust-action@nightly
+      
+      - name: Run tests with nightly
+        run: cargo test --all
+      
+      - name: Check for new warnings
+        run: cargo clippy --all-targets --all-features -- -D warnings
