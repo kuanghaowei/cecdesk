@@ -1,8 +1,8 @@
-# 工一远程客户端开发环境文档
+# 工一远控开发环境文档
 
 ## 概述
 
-本文档描述了工一远程客户端项目的完整开发环境配置和使用方法。开发环境支持 Rust 核心引擎、Flutter 统一客户端、微信小程序以及完整的 CI/CD 流水线。
+本文档描述了工一远控（CEC Remote）项目的完整开发环境配置和使用方法。开发环境支持 Rust 核心引擎、Flutter 统一界面、微信小程序以及完整的 CI/CD 流水线。
 
 ## 系统要求
 
@@ -16,29 +16,81 @@
 ### 1. 一键安装开发环境
 
 ```bash
-# 下载安装脚本
-wget https://raw.githubusercontent.com/your-repo/cec-remote/main/setup-dev-env.sh
+# 克隆项目
+git clone https://github.com/your-repo/cec-remote.git
+cd cec-remote
 
-# 给脚本执行权限
-chmod +x setup-dev-env.sh
-
-# 运行安装脚本（普通用户）
-./setup-dev-env.sh
-
-# 或者使用 root 用户（会显示警告但允许继续）
-sudo ./setup-dev-env.sh
+# 运行安装脚本
+./scripts/dev.sh setup
 ```
 
 ### 2. 重新加载环境变量
 
 ```bash
-# 重新加载 bashrc
 source ~/.bashrc
-
-# 或者重新登录终端
 ```
 
-### 3. 验证安装
+### 3. 配置环境变量
+
+安装完成后，需要确保环境变量正确配置。将以下内容添加到 `~/.bashrc` 或 `~/.zshrc`：
+
+```bash
+# ============================================
+# Rust 环境变量
+# ============================================
+export RUSTUP_HOME="$HOME/.rustup"
+export CARGO_HOME="$HOME/.cargo"
+export PATH="$CARGO_HOME/bin:$PATH"
+
+# Rust 国内镜像源（可选，加速下载）
+# 在 ~/.cargo/config.toml 中配置：
+# [source.crates-io]
+# replace-with = 'ustc'
+# [source.ustc]
+# registry = "https://mirrors.ustc.edu.cn/crates.io-index"
+
+# ============================================
+# Flutter 环境变量
+# ============================================
+export FLUTTER_HOME="$HOME/development/flutter"
+export PATH="$FLUTTER_HOME/bin:$PATH"
+
+# Flutter 国内镜像源（可选，加速下载）
+export PUB_HOSTED_URL="https://pub.flutter-io.cn"
+export FLUTTER_STORAGE_BASE_URL="https://storage.flutter-io.cn"
+
+# ============================================
+# Android SDK 环境变量
+# ============================================
+export ANDROID_HOME="$HOME/Android/Sdk"
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
+export PATH="$ANDROID_HOME/platform-tools:$PATH"
+export PATH="$ANDROID_HOME/emulator:$PATH"
+
+# ============================================
+# Node.js 环境变量
+# ============================================
+# npm 全局包路径（可选）
+export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
+
+# ============================================
+# Java 环境变量 (Android 开发需要)
+# ============================================
+export JAVA_HOME="/usr/lib/jvm/java-17-openjdk-amd64"
+export PATH="$JAVA_HOME/bin:$PATH"
+```
+
+配置完成后，重新加载：
+
+```bash
+source ~/.bashrc
+# 或
+source ~/.zshrc
+```
+
+### 4. 验证安装
 
 ```bash
 # 检查 Rust
@@ -57,6 +109,11 @@ docker --version
 
 # 检查 Git
 git --version
+
+# 检查环境变量
+echo $CARGO_HOME
+echo $FLUTTER_HOME
+echo $ANDROID_HOME
 ```
 
 ## 开发环境组件
@@ -385,53 +442,83 @@ static Pointer<Void>? createWebRTCEngine() {
 
 ## CI/CD 配置
 
-### GitHub Actions 工作流
+项目已配置完整的 GitHub Actions CI/CD 流水线，包含以下工作流：
 
-创建 `.github/workflows/ci.yml`:
+### 工作流文件
 
-```yaml
-name: CI/CD Pipeline
+| 文件 | 用途 | 触发条件 |
+|------|------|----------|
+| `.github/workflows/ci.yml` | 主 CI/CD 流程 | push/PR 到 main/develop |
+| `.github/workflows/pr-check.yml` | PR 快速检查 | Pull Request |
+| `.github/workflows/nightly.yml` | 每日构建 | 每天 UTC 2:00 / 手动 |
 
-on:
-  push:
-    branches: [ main, develop ]
-  pull_request:
-    branches: [ main ]
+### 主流程 (ci.yml)
 
-jobs:
-  rust-tests:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - uses: actions-rs/toolchain@v1
-      with:
-        toolchain: stable
-    - name: Run Rust tests
-      run: |
-        cd rust-core
-        cargo test
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        测试阶段                              │
+├─────────────────┬─────────────────┬─────────────────────────┤
+│   rust-test     │  flutter-test   │   miniprogram-test      │
+│   (格式/lint/   │  (analyze/test/ │   (jest/coverage)       │
+│    单元测试)    │   coverage)     │                         │
+└────────┬────────┴────────┬────────┴────────────┬────────────┘
+         │                 │                      │
+         └─────────────────┼──────────────────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      构建阶段 (main/tag)                     │
+├──────────┬──────────┬──────────┬──────────┬────────┬────────┤
+│ Android  │   iOS    │   Web    │ Windows  │ macOS  │ Linux  │
+│  (APK/   │ (no-sign)│          │          │        │        │
+│   AAB)   │          │          │          │        │        │
+└────┬─────┴────┬─────┴────┬─────┴────┬─────┴───┬────┴───┬────┘
+     │          │          │          │         │        │
+     └──────────┴──────────┼──────────┴─────────┴────────┘
+                           ▼
+┌─────────────────────────────────────────────────────────────┐
+│                      发布阶段 (tag v*)                       │
+├─────────────────────────────────────────────────────────────┤
+│  release: 创建 GitHub Release 并上传所有平台构建产物          │
+│  deploy-web: 部署 Web 版本到 GitHub Pages                    │
+└─────────────────────────────────────────────────────────────┘
+```
 
-  flutter-tests:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - uses: subosito/flutter-action@v2
-      with:
-        flutter-version: '3.16.0'
-    - name: Run Flutter tests
-      run: |
-        cd flutter-client
-        flutter test
+### 本地测试
 
-  build-and-deploy:
-    needs: [rust-tests, flutter-tests]
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
-    steps:
-    - uses: actions/checkout@v3
-    - name: Build and deploy
-      run: |
-        # 构建和部署逻辑
+```bash
+# 运行所有测试（提交前推荐）
+./scripts/dev.sh test
+
+# 单独测试各组件
+./scripts/dev.sh test:rust      # Rust
+./scripts/dev.sh test:flutter   # Flutter
+./scripts/dev.sh test:mini      # 小程序
+
+# 其他常用命令
+./scripts/dev.sh doctor         # 检查环境
+./scripts/dev.sh lint           # 代码检查
+./scripts/dev.sh fmt            # 格式化
+./scripts/dev.sh build          # 构建
+./scripts/dev.sh clean          # 清理
+```
+
+### 发布新版本
+
+```bash
+# 1. 更新版本号
+# 2. 提交代码
+git add .
+git commit -m "chore: release v1.0.0"
+
+# 3. 打标签并推送
+git tag v1.0.0
+git push origin main --tags
+
+# CI 会自动：
+# - 运行所有测试
+# - 构建所有平台
+# - 创建 GitHub Release
+# - 部署 Web 到 GitHub Pages
 ```
 
 ### Docker 配置
@@ -728,5 +815,5 @@ sudo apt update && sudo apt upgrade
 
 ---
 
-**最后更新**: 2024年1月1日
-**文档版本**: 1.0.0
+**最后更新**: 2026年1月2日
+**文档版本**: 1.1.0

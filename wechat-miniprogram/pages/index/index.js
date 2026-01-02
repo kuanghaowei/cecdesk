@@ -1,5 +1,5 @@
 // pages/index/index.js
-// 工一远程客户端 - 首页/启动页
+// 工一远控 - 首页/启动页
 const app = getApp();
 
 Page({

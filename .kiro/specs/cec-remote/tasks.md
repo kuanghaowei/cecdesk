@@ -1,8 +1,8 @@
-# 实现计划：工一远程客户端
+# 实现计划：工一远控
 
 ## 概述
 
-基于简化的技术栈（Rust 核心引擎 + Flutter 统一客户端 + JavaScript 微信小程序）实现工一远程客户端。采用分层架构，核心 WebRTC 功能使用 Rust 实现，客户端界面使用 Flutter 统一开发，微信小程序使用 JavaScript 原生开发。
+基于简化的技术栈（Rust 核心引擎 + Flutter 统一界面 + JavaScript 微信小程序）实现工一远控。采用分层架构，核心 WebRTC 功能使用 Rust 实现，界面使用 Flutter 统一开发，微信小程序使用 JavaScript 原生开发。
 
 ## 任务
 
