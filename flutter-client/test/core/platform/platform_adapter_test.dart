@@ -1,7 +1,8 @@
 import 'dart:math';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_desktop_client/src/core/platform/desktop_adapter.dart';
-import 'package:remote_desktop_client/src/core/platform/mobile_adapter.dart';
+import 'package:remote_desktop_client/src/core/platform/mobile_adapter.dart' as mobile;
 import 'package:remote_desktop_client/src/core/platform/web_adapter.dart';
 import 'package:remote_desktop_client/src/core/platform/harmony_adapter.dart';
 
@@ -10,6 +11,7 @@ import 'package:remote_desktop_client/src/core/platform/harmony_adapter.dart';
 /// Requirements: 1.9, 16.1-16.7
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('Platform Adapter Tests', () {
     // Property 1: Cross-platform functionality consistency
     // Validates: Requirements 1.9
@@ -22,8 +24,8 @@ void main() {
         expect(MacOSDesktopAdapter, isNotNull);
 
         // Mobile adapter capabilities
-        expect(AndroidMobileAdapter, isNotNull);
-        expect(IOSMobileAdapter, isNotNull);
+        expect(mobile.AndroidMobileAdapter, isNotNull);
+        expect(mobile.IOSMobileAdapter, isNotNull);
 
         // Web adapter capabilities
         expect(WebAdapterImpl, isNotNull);
@@ -138,7 +140,7 @@ void main() {
       test('HarmonyOS adapter should handle device discovery', () async {
         // Should not throw
         await adapter.startDeviceDiscovery();
-        final devices = await adapter.getDistributedDevices();
+        final devices = await adapter.getDiscoveredDevices();
         expect(devices, isA<List<DistributedDevice>>());
         await adapter.stopDeviceDiscovery();
       });
@@ -165,7 +167,7 @@ void main() {
 
         for (int i = 0; i < 100; i++) {
           final config = WindowConfig(
-            name: 'Window ${random.nextInt(100)}',
+            title: 'Window ${random.nextInt(100)}',
             width: 100 + random.nextInt(1000),
             height: 100 + random.nextInt(800),
           );
@@ -186,23 +188,23 @@ void main() {
         adapter = HarmonyAdapter.instance;
       });
 
-      test('HarmonyOS adapter should provide supported gestures', () async {
-        final gestures = await adapter.getSupportedGestures();
-        expect(gestures, isA<List<HarmonyGestureType>>());
-        expect(gestures, isNotEmpty);
+      test('HarmonyOS adapter should provide gesture settings', () async {
+        final settings = await adapter.getGestureSettings();
+        expect(settings, isA<GestureSettings>());
+        expect(settings.swipeBackEnabled, isA<bool>());
       });
 
-      test('PBT: Supported gestures should be valid HarmonyGestureType values', () async {
+      test('PBT: Gesture settings should have valid values', () async {
         // Feature: cec-remote, Property 21: HarmonyOS gesture input support
         // Validates: Requirements 16.4
         for (int i = 0; i < 100; i++) {
-          final gestures = await adapter.getSupportedGestures();
+          final settings = await adapter.getGestureSettings();
           
-          // Property: All gestures should be valid enum values
-          for (final gesture in gestures) {
-            expect(gesture, isA<HarmonyGestureType>());
-            expect(HarmonyGestureType.values.contains(gesture), isTrue);
-          }
+          // Property: All gesture settings should be valid
+          expect(settings.swipeBackEnabled, isA<bool>());
+          expect(settings.swipeHomeEnabled, isA<bool>());
+          expect(settings.swipeRecentEnabled, isA<bool>());
+          expect(settings.sensitivity, greaterThan(0));
         }
       });
     });
@@ -219,7 +221,7 @@ void main() {
       test('HarmonyOS adapter should handle file operations', () async {
         // Should not throw
         await adapter.openWithFileManager('/test/path');
-        await adapter.shareFile('/test/file.txt', mimeType: 'text/plain');
+        await adapter.shareFile(const ShareFileInfo(filePath: '/test/file.txt', mimeType: 'text/plain'));
       });
 
       test('PBT: File paths should be valid strings', () {
@@ -254,25 +256,27 @@ void main() {
 
         for (int i = 0; i < 100; i++) {
           final config = BackgroundTaskConfig(
-            name: 'task_${random.nextInt(1000)}',
-            interval: Duration(seconds: 30 + random.nextInt(300)),
+            taskName: 'task_${random.nextInt(1000)}',
+            type: BackgroundTaskType.dataTransfer,
+            timeout: Duration(seconds: 30 + random.nextInt(300)),
           );
 
           // Property: Task name should not be empty
-          expect(config.name, isNotEmpty);
-          expect(config.interval.inSeconds, greaterThan(0));
+          expect(config.taskName, isNotEmpty);
+          expect(config.timeout!.inSeconds, greaterThan(0));
         }
       });
 
       test('HarmonyOS adapter should handle background tasks', () async {
-        final taskId = await adapter.startBackgroundTask(
+        final taskHandle = await adapter.requestBackgroundTask(
           const BackgroundTaskConfig(
-            name: 'test_task',
-            interval: Duration(minutes: 5),
+            taskName: 'test_task',
+            type: BackgroundTaskType.dataTransfer,
+            timeout: Duration(minutes: 5),
           ),
         );
-        // Task ID may be null in mock implementation
-        expect(taskId, isA<String?>());
+        // Task handle may be null in mock implementation
+        expect(taskHandle, isA<BackgroundTaskHandle?>());
       });
     });
 
@@ -306,12 +310,8 @@ void main() {
 
       test('HarmonyOS adapter should handle session migration', () async {
         final result = await adapter.migrateSession(
-          'test_device',
-          SessionData(
-            sessionId: 'session_1',
-            state: {'key': 'value'},
-            timestamp: DateTime.now(),
-          ),
+          targetDeviceId: 'test_device',
+          sessionData: {'sessionId': 'session_1', 'key': 'value'},
         );
         expect(result, isA<bool>());
       });
@@ -323,11 +323,11 @@ void main() {
         // Feature: cec-remote, Property 1: Cross-platform functionality consistency
         // Validates: Requirements 1.4, 1.5
         final random = Random();
-        final adapter = AndroidMobileAdapter();
+        final adapter = mobile.AndroidMobileAdapter();
 
         for (int i = 0; i < 100; i++) {
-          final touch = TouchEvent(
-            phase: TouchPhase.values[random.nextInt(TouchPhase.values.length)],
+          final touch = mobile.TouchEvent(
+            phase: mobile.TouchPhase.values[random.nextInt(mobile.TouchPhase.values.length)],
             x: random.nextDouble() * 1920,
             y: random.nextDouble() * 1080,
             pressure: random.nextDouble(),
@@ -349,11 +349,11 @@ void main() {
         // Feature: cec-remote, Property 1: Cross-platform functionality consistency
         // Validates: Requirements 1.4, 1.5
         final random = Random();
-        final adapter = IOSMobileAdapter();
+        final adapter = mobile.IOSMobileAdapter();
 
         for (int i = 0; i < 100; i++) {
-          final gesture = GestureEvent(
-            type: GestureType.values[random.nextInt(GestureType.values.length)],
+          final gesture = mobile.GestureEvent(
+            type: mobile.GestureType.values[random.nextInt(mobile.GestureType.values.length)],
             x: random.nextDouble() * 1920,
             y: random.nextDouble() * 1080,
             scale: 0.5 + random.nextDouble() * 2,
@@ -380,7 +380,7 @@ void main() {
         final random = Random();
 
         for (int i = 0; i < 100; i++) {
-          final settings = TouchSettings(
+          final settings = mobile.TouchSettings(
             sensitivity: 0.1 + random.nextDouble() * 2.9,
             scrollSpeed: 0.1 + random.nextDouble() * 2.9,
             tapToClick: random.nextBool(),
