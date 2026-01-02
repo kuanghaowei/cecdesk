@@ -10,6 +10,7 @@ pub mod access_control;
 pub mod ffi;
 pub mod logging;
 pub mod diagnostics;
+pub mod performance;
 
 #[cfg(test)]
 mod signaling_test;
@@ -31,6 +32,9 @@ mod security_test;
 
 #[cfg(test)]
 mod logging_test;
+
+#[cfg(test)]
+mod integration_test;
 
 pub use webrtc_engine::{WebRTCEngine, RTCConfiguration, IceServer, RTCPeerConnectionState, WebRTCEvent, MediaStream, MediaTrack, ConnectionStats};
 pub use signaling::{SignalingClient, SignalingMessage, SignalingEvent, DeviceInfo, DeviceCapabilities, DeviceStatus, SignalingMetrics, generate_device_id};
