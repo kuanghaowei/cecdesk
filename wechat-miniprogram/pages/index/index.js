@@ -1,4 +1,5 @@
 // pages/index/index.js
+// 工一远程客户端 - 首页/启动页
 const app = getApp();
 
 Page({
@@ -8,11 +9,20 @@ Page({
     isConnecting: false,
     connectionHistory: [],
     currentDeviceId: '',
-    isOnline: false
+    isOnline: false,
+    isLoggedIn: false,
+    userInfo: null,
+    hasAgreedToTerms: false
   },
 
   onLoad(options) {
-    console.log('连接页面加载', options);
+    console.log('首页加载', options);
+    
+    // 检查用户协议同意状态
+    this.checkTermsAgreement();
+    
+    // 检查登录状态
+    this.checkLoginStatus();
     
     // 获取设备ID
     this.setData({
@@ -24,6 +34,81 @@ Page({
     
     // 检查在线状态
     this.checkOnlineStatus();
+  },
+
+  // 检查用户协议同意状态
+  checkTermsAgreement() {
+    const termsAgreed = wx.getStorageSync('termsAgreed');
+    this.setData({
+      hasAgreedToTerms: !!termsAgreed
+    });
+    
+    // 如果未同意协议，显示协议弹窗
+    if (!termsAgreed) {
+      this.showTermsModal();
+    }
+  },
+
+  // 显示用户协议弹窗
+  showTermsModal() {
+    wx.showModal({
+      title: '用户协议与隐私政策',
+      content: '欢迎使用工一远程！在使用前，请阅读并同意《用户协议》和《隐私政策》。我们将严格保护您的个人信息安全。',
+      confirmText: '同意',
+      cancelText: '不同意',
+      success: (res) => {
+        if (res.confirm) {
+          // 记录同意状态
+          wx.setStorageSync('termsAgreed', {
+            agreed: true,
+            timestamp: Date.now(),
+            version: '1.0.0'
+          });
+          this.setData({
+            hasAgreedToTerms: true
+          });
+        } else {
+          // 不同意则退出小程序
+          wx.showModal({
+            title: '提示',
+            content: '您需要同意用户协议才能使用本应用',
+            showCancel: false,
+            success: () => {
+              // 重新显示协议弹窗
+              this.showTermsModal();
+            }
+          });
+        }
+      }
+    });
+  },
+
+  // 检查登录状态
+  checkLoginStatus() {
+    const loginInfo = wx.getStorageSync('loginInfo');
+    if (loginInfo && loginInfo.token) {
+      // 检查是否过期
+      if (loginInfo.expiresAt && loginInfo.expiresAt > Date.now()) {
+        this.setData({
+          isLoggedIn: true,
+          userInfo: loginInfo.userInfo
+        });
+      } else {
+        // 登录已过期，清除登录信息
+        wx.removeStorageSync('loginInfo');
+        this.setData({
+          isLoggedIn: false,
+          userInfo: null
+        });
+      }
+    }
+  },
+
+  // 跳转到登录页
+  goToLogin() {
+    wx.navigateTo({
+      url: '/pages/login/login'
+    });
   },
 
   onShow() {

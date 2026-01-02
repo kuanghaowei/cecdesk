@@ -1,0 +1,39 @@
+{
+  "name": "gongyi-remote-miniprogram",
+  "version": "1.0.0",
+  "description": "工一远程客户端 - 微信小程序",
+  "main": "app.js",
+  "scripts": {
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
+  },
+  "keywords": [
+    "wechat",
+    "miniprogram",
+    "remote-desktop",
+    "webrtc"
+  ],
+  "author": "GongYi Remote Team",
+  "license": "MIT",
+  "devDependencies": {
+    "fast-check": "^4.5.3",
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "moduleFileExtensions": [
+      "js",
+      "json"
+    ],
+    "collectCoverageFrom": [
+      "utils/**/*.js",
+      "!**/node_modules/**"
+    ],
+    "coverageDirectory": "coverage",
+    "verbose": true
+  }
+}

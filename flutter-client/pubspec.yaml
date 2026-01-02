@@ -1,4 +1,4 @@
-name: cec_remote_client
+name: remote_desktop_client
 description: CEC Remote - Cross-platform remote desktop client using Flutter and Rust core
 
 publish_to: 'none'

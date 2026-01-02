@@ -1,0 +1,94 @@
+<!--pages/login/login.wxml-->
+<view class="container">
+  <!-- 已登录状态 -->
+  <view class="logged-in-section" wx:if="{{isLoggedIn}}">
+    <view class="user-avatar">
+      <image src="{{userInfo.avatarUrl || '/images/default-avatar.png'}}" mode="aspectFill"></image>
+    </view>
+    <view class="user-name">{{userInfo.nickName || '用户'}}</view>
+    <view class="user-status">已登录</view>
+    
+    <button class="logout-btn" bindtap="logout">退出登录</button>
+  </view>
+
+  <!-- 未登录状态 -->
+  <view class="login-section" wx:else>
+    <view class="login-header">
+      <view class="app-logo">🖥️</view>
+      <view class="app-name">工一远程</view>
+      <view class="app-desc">安全、高效的远程控制解决方案</view>
+    </view>
+
+    <!-- 微信一键登录 -->
+    <view class="login-methods">
+      <button class="wechat-login-btn" 
+              bindtap="wechatLogin" 
+              loading="{{isLoading && loginMethod === 'wechat'}}"
+              disabled="{{isLoading}}">
+        <text class="btn-icon">💬</text>
+        <text>微信一键登录</text>
+      </button>
+
+      <!-- 手机号快捷登录 -->
+      <button class="phone-quick-btn" 
+              open-type="getPhoneNumber" 
+              bindgetphonenumber="getPhoneNumber"
+              wx:if="{{canGetPhoneNumber}}"
+              disabled="{{isLoading}}">
+        <text class="btn-icon">📱</text>
+        <text>手机号快捷登录</text>
+      </button>
+    </view>
+
+    <!-- 分隔线 -->
+    <view class="divider">
+      <view class="divider-line"></view>
+      <text class="divider-text">或</text>
+      <view class="divider-line"></view>
+    </view>
+
+    <!-- 手机号验证码登录 -->
+    <view class="phone-login-form">
+      <view class="form-title">手机号验证码登录</view>
+      
+      <view class="input-group">
+        <view class="input-prefix">+86</view>
+        <input class="phone-input" 
+               type="number" 
+               placeholder="请输入手机号" 
+               value="{{phoneNumber}}"
+               bindinput="onPhoneInput"
+               maxlength="11" />
+      </view>
+      
+      <view class="input-group code-group">
+        <input class="code-input" 
+               type="number" 
+               placeholder="请输入验证码" 
+               value="{{verificationCode}}"
+               bindinput="onCodeInput"
+               maxlength="6" />
+        <button class="send-code-btn {{countdown > 0 ? 'disabled' : ''}}" 
+                bindtap="sendVerificationCode"
+                disabled="{{countdown > 0}}">
+          {{countdown > 0 ? countdown + 's' : '获取验证码'}}
+        </button>
+      </view>
+      
+      <button class="verify-login-btn" 
+              bindtap="verifyCodeLogin"
+              loading="{{isLoading && loginMethod === 'phone'}}"
+              disabled="{{isLoading || !phoneNumber || !verificationCode}}">
+        登录
+      </button>
+    </view>
+
+    <!-- 协议同意 -->
+    <view class="agreement">
+      <text>登录即表示同意</text>
+      <text class="link">《用户协议》</text>
+      <text>和</text>
+      <text class="link">《隐私政策》</text>
+    </view>
+  </view>
+</view>

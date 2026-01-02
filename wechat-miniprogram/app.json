@@ -1,17 +1,19 @@
 {
   "pages": [
-    "pages/connection/connection",
     "pages/index/index",
+    "pages/connection/connection",
     "pages/remote-desktop/remote-desktop",
     "pages/file-transfer/file-transfer",
-    "pages/settings/settings"
+    "pages/settings/settings",
+    "pages/login/login"
   ],
   "window": {
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#2196F3",
     "navigationBarTitleText": "工一远程",
     "navigationBarTextStyle": "white",
-    "backgroundColor": "#f5f5f5"
+    "backgroundColor": "#f5f5f5",
+    "enablePullDownRefresh": false
   },
   "tabBar": {
     "color": "#666666",
@@ -35,19 +37,32 @@
   },
   "permission": {
     "scope.camera": {
-      "desc": "用于屏幕共享功能"
+      "desc": "用于屏幕共享和视频传输功能"
     },
     "scope.record": {
       "desc": "用于音频传输功能"
     },
     "scope.writePhotosAlbum": {
-      "desc": "用于保存截图和文件"
+      "desc": "用于保存截图和传输的文件"
+    },
+    "scope.userLocation": {
+      "desc": "用于网络诊断和连接优化"
     }
   },
-  "requiredBackgroundModes": ["audio"],
+  "requiredPrivateInfos": [
+    "chooseImage",
+    "chooseVideo",
+    "chooseMessageFile"
+  ],
+  "requiredBackgroundModes": ["audio", "voip"],
   "networkTimeout": {
     "request": 10000,
-    "downloadFile": 10000
+    "downloadFile": 60000,
+    "uploadFile": 60000,
+    "connectSocket": 10000
   },
-  "debug": true
+  "plugins": {},
+  "resizable": true,
+  "debug": false,
+  "lazyCodeLoading": "requiredComponents"
 }
