@@ -83,15 +83,23 @@ jobs:
       - name: Run tests
         run: |
           set +e
-          flutter test --coverage 2>&1 | tee test_output.txt
+          timeout 300 flutter test --coverage 2>&1 | tee test_output.txt
           TEST_EXIT=$?
+          # 强制终止可能残留的 dart 进程
+          pkill -f "dart" || true
           if grep -q "tests passed" test_output.txt; then
             echo "✅ All tests passed"
             exit 0
+          elif [ $TEST_EXIT -eq 124 ]; then
+            echo "⚠️ Tests timed out but may have passed"
+            if grep -q "All tests passed" test_output.txt; then
+              exit 0
+            fi
+            exit 1
           else
             exit $TEST_EXIT
           fi
-        timeout-minutes: 10
+        timeout-minutes: 8
       
       - name: Upload coverage
         uses: codecov/codecov-action@v4
