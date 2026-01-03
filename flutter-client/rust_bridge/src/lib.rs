@@ -8,8 +8,9 @@ pub use remote_desktop_core::*;
 #[cfg(test)]
 mod tests {
     #[test]
-    fn test_bridge_initialization() {
-        // Basic smoke test
-        assert!(true);
+    fn test_bridge_exports_core() {
+        // Verify that core types are re-exported
+        // This ensures the bridge properly exposes the core library
+        let _ = std::any::type_name::<super::SignalingClient>();
     }
 }
