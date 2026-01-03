@@ -44,8 +44,9 @@ class LoginCredentials {
   /// Check if session is inactive for more than 30 days
   /// Validates: Requirement 18.6
   bool get isInactiveExpired {
-    final thirtyDaysAgo = DateTime.now().subtract(const Duration(days: 30));
-    return createdAt.isBefore(thirtyDaysAgo);
+    final now = DateTime.now();
+    final daysSinceCreation = now.difference(createdAt).inDays;
+    return daysSinceCreation > 30;
   }
 
   Map<String, dynamic> toJson() => {
