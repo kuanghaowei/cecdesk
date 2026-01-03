@@ -568,7 +568,6 @@ class MonitoringService extends StateNotifier<MonitoringState> {
       await Future.delayed(const Duration(milliseconds: 500));
       info('Diagnostics', '检测 NAT 类型...');
       // In production, this would be detected dynamically
-      // ignore: dead_code
       final natType = NatType.fullCone;
 
       // 计算总体状态和建议
@@ -581,7 +580,7 @@ class MonitoringService extends StateNotifier<MonitoringState> {
       } else if (!signalingServer.reachable) {
         overallStatus = DiagnosticStatus.critical;
         recommendations.add('无法连接信令服务器，请检查网络设置');
-      } else if (natType == NatType.symmetric || natType == NatType.symmetricUdpFirewall) {
+      } else if (natType == NatType.symmetric || natType == NatType.symmetricUdpFirewall) { // ignore: dead_code
         if (!turnServers.any((s) => s.reachable)) {
           overallStatus = DiagnosticStatus.warning;
           recommendations.add('检测到对称NAT，建议确保TURN服务器可用');

@@ -235,4 +235,18 @@ mod unit_tests {
 
         // Create multiple connections
         let id1 = engine.create_peer_connection(config.clone()).await.unwrap();
-        let id2 = engine.create_peer_connection(config.clo
+        let id2 = engine.create_peer_connection(config.clone()).await.unwrap();
+
+        // Verify both connections exist and have unique IDs
+        assert_ne!(id1, id2, "Connection IDs should be unique");
+
+        let state1 = engine.get_connection_state(&id1).await;
+        let state2 = engine.get_connection_state(&id2).await;
+        assert_eq!(state1, Some(RTCPeerConnectionState::New));
+        assert_eq!(state2, Some(RTCPeerConnectionState::New));
+
+        // Cleanup
+        engine.close_connection(&id1).await.unwrap();
+        engine.close_connection(&id2).await.unwrap();
+    }
+}

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/services/monitoring_service.dart';
-import '../../../../core/services/consent_service.dart';
 import '../../../../core/services/service_locator.dart' show consentServiceProvider;
 
 class SettingsPage extends ConsumerStatefulWidget {
@@ -276,17 +275,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
           diagnostics.turnServerReachable,
           null,
         ),
-        if (diagnostics.natType != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Row(
-              children: [
-                const Icon(Icons.router, size: 16, color: Colors.grey),
-                const SizedBox(width: 8),
-                Text('NAT 类型: ${diagnostics.natType}'),
-              ],
-            ),
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: Row(
+            children: [
+              const Icon(Icons.router, size: 16, color: Colors.grey),
+              const SizedBox(width: 8),
+              Text('NAT 类型: ${diagnostics.natType}'),
+            ],
           ),
+        ),
         if (diagnostics.publicIpv4 != null)
           Padding(
             padding: const EdgeInsets.only(top: 4),
@@ -389,7 +387,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage>
   }
 
   Widget _buildAboutTab() {
-    final consentService = ref.read(consentServiceProvider.notifier);
+    final consentService = ref.read(consentServiceProvider);
 
     return ListView(
       padding: const EdgeInsets.all(16),
