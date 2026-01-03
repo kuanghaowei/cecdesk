@@ -1,4 +1,4 @@
-package com.cec.remote_desktop_client
+package com.cec.remote
 
 import io.flutter.embedding.android.FlutterActivity
 
