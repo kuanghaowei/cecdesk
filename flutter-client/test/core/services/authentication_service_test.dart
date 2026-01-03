@@ -389,7 +389,6 @@ void main() {
       // Feature: cec-remote, Property 34: Account lock mechanism
       
       const iterations = 10;
-      final random = Random();
       
       for (var i = 0; i < iterations; i++) {
         final identifier = 'test_account_$i';

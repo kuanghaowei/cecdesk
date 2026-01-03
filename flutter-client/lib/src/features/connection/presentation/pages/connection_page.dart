@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../../../core/services/connection_service.dart';
+import '../../../../core/services/connection_service.dart' as conn;
 import '../../../../core/services/monitoring_service.dart';
 
 class ConnectionPage extends ConsumerStatefulWidget {
@@ -25,7 +25,7 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
 
   @override
   Widget build(BuildContext context) {
-    final connectionState = ref.watch(connectionServiceProvider);
+    final connectionState = ref.watch(conn.connectionServiceProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -60,7 +60,7 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
     );
   }
 
-  Widget _buildActiveSessionCard(SessionInfo session) {
+  Widget _buildActiveSessionCard(conn.SessionInfo session) {
     return Card(
       color: Colors.green.shade50,
       margin: const EdgeInsets.only(bottom: 16),
@@ -124,7 +124,7 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
     );
   }
 
-  Widget _buildNewConnectionCard(ConnectionState connectionState) {
+  Widget _buildNewConnectionCard(conn.ConnectionState connectionState) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -209,7 +209,7 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
     );
   }
 
-  Widget _buildRecentConnectionsCard(ConnectionState connectionState) {
+  Widget _buildRecentConnectionsCard(conn.ConnectionState connectionState) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -228,7 +228,7 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
                 if (connectionState.sessionHistory.isNotEmpty)
                   TextButton(
                     onPressed: () {
-                      ref.read(connectionServiceProvider.notifier).clearHistory();
+                      ref.read(conn.connectionServiceProvider.notifier).clearHistory();
                     },
                     child: const Text('清除'),
                   ),
@@ -262,7 +262,7 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
     );
   }
 
-  Widget _buildHistoryItem(SessionHistory history) {
+  Widget _buildHistoryItem(conn.SessionHistory history) {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: const CircleAvatar(
@@ -294,7 +294,7 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
       return;
     }
 
-    final connectionService = ref.read(connectionServiceProvider.notifier);
+    final connectionService = ref.read(conn.connectionServiceProvider.notifier);
     final monitoring = ref.read(monitoringServiceProvider.notifier);
 
     monitoring.info('Connection', '尝试连接到设备: $deviceCode');
@@ -306,7 +306,7 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
 
     if (success && mounted) {
       monitoring.info('Connection', '连接成功: $deviceCode');
-      final session = ref.read(connectionServiceProvider).currentSession;
+      final session = ref.read(conn.connectionServiceProvider).currentSession;
       if (session != null) {
         context.push('/remote-desktop/${session.sessionId}');
       }
@@ -334,7 +334,7 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              ref.read(connectionServiceProvider.notifier).disconnect();
+              ref.read(conn.connectionServiceProvider.notifier).disconnect();
               ref.read(monitoringServiceProvider.notifier).info(
                     'Connection',
                     '用户断开连接',
@@ -348,7 +348,7 @@ class _ConnectionPageState extends ConsumerState<ConnectionPage> {
     );
   }
 
-  void _showConnectionHistory(ConnectionState connectionState) {
+  void _showConnectionHistory(conn.ConnectionState connectionState) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,

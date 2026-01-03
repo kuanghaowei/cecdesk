@@ -134,6 +134,7 @@ X-GNOME-Autostart-enabled=true
       final lines = output.split('\n');
 
       int index = 0;
+      // ignore: unused_local_variable
       int xOffset = 0;
 
       for (final line in lines) {

@@ -156,7 +156,6 @@ void main() {
       // Feature: cec-remote, Property 40: Screen lock password verification
       
       const iterations = 100;
-      final random = Random();
       
       for (var i = 0; i < iterations; i++) {
         // Enable screen lock password requirement

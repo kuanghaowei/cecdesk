@@ -33,7 +33,6 @@ void main() {
       // Feature: cec-remote, Property 45: First launch consent requirement
       
       const iterations = 100;
-      final random = Random();
       
       for (var i = 0; i < iterations; i++) {
         // Clear any existing consent

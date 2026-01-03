@@ -41,7 +41,7 @@ void main() {
 
       final buffer1 = pool.acquire();
       pool.release(buffer1);
-      final buffer2 = pool.acquire();
+      pool.acquire(); // Reuse the released buffer
 
       final (allocated, reused) = pool.stats;
       expect(allocated, 1);
@@ -106,7 +106,7 @@ void main() {
         ));
       }
 
-      final (count, bytes, dropped) = manager.stats;
+      final (count, _, dropped) = manager.stats;
       expect(count, 2);
       expect(dropped, 3); // 3 frames dropped
     });

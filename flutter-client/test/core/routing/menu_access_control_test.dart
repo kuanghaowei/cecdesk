@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -32,7 +31,6 @@ void main() {
       // Feature: cec-remote, Property 35: Unauthenticated access control
       
       const iterations = 100;
-      final random = Random();
       
       for (var i = 0; i < iterations; i++) {
         // Ensure user is logged out

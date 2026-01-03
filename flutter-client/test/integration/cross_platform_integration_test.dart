@@ -372,9 +372,9 @@ void main() {
           final frameRate = await simulateFrameRateTest(platform);
           
           expect(frameRate, greaterThanOrEqualTo(minFrameRate.toDouble()),
-              reason: 'Platform ${platform.name} frame rate ${frameRate.toStringAsFixed(0)}fps below ${minFrameRate} minimum');
+              reason: 'Platform ${platform.name} frame rate ${frameRate.toStringAsFixed(0)}fps below $minFrameRate minimum');
           expect(frameRate, lessThanOrEqualTo(maxFrameRate.toDouble()),
-              reason: 'Platform ${platform.name} frame rate ${frameRate.toStringAsFixed(0)}fps above ${maxFrameRate} maximum');
+              reason: 'Platform ${platform.name} frame rate ${frameRate.toStringAsFixed(0)}fps above $maxFrameRate maximum');
         }
       });
 

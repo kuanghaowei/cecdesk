@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// 日志级别
@@ -325,6 +324,10 @@ class NetworkDiagnostics {
 
   int? get signalingLatency => signalingServer.latencyMs;
   int? get stunLatency => stunServers.firstWhere((s) => s.reachable, orElse: () => stunServers.first).latencyMs;
+
+  bool get signalingServerReachable => signalingServer.reachable;
+  bool get stunServerReachable => stunServers.any((s) => s.reachable);
+  bool get turnServerReachable => turnServers.any((s) => s.reachable);
 }
 
 /// 监控服务状态
@@ -564,6 +567,8 @@ class MonitoringService extends StateNotifier<MonitoringState> {
       // 检测 NAT 类型
       await Future.delayed(const Duration(milliseconds: 500));
       info('Diagnostics', '检测 NAT 类型...');
+      // In production, this would be detected dynamically
+      // ignore: dead_code
       final natType = NatType.fullCone;
 
       // 计算总体状态和建议

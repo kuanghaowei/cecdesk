@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/services/monitoring_service.dart';
 import '../../../../core/services/consent_service.dart';
+import '../../../../core/services/service_locator.dart' show consentServiceProvider;
 
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});

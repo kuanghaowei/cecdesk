@@ -53,7 +53,7 @@ class RustBridge {
     if (_lib == null) return;
 
     _webrtcEngineCreate = _lib!
-        .lookup<NativeFunction<Pointer<Void> Function()>>('webrtc_engine_create')
+        .lookup<NativeFunction<IntPtr Function()>>('webrtc_engine_create')
         .asFunction();
 
     _webrtcEngineDestroy = _lib!

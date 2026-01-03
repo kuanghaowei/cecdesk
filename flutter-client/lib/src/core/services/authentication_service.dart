@@ -181,7 +181,9 @@ class SMSVerificationState {
 /// Validates: Requirements 17.x, 17a.x, 18.x
 class AuthenticationService {
   static const String _credentialsKey = 'login_credentials';
+  // ignore: unused_field
   static const String _smsStateKey = 'sms_verification_state';
+  // ignore: unused_field
   static const String _loginAttemptsKey = 'login_attempts';
   
   /// QR code expiration time (5 minutes)

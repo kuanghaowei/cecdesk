@@ -461,7 +461,7 @@ class SessionManagementService extends StateNotifier<SessionManagementState> {
       final historyJson = await _secureStorage.read(_historyStorageKey);
       if (historyJson != null) {
         final List<dynamic> historyList = 
-            (historyJson as String).isNotEmpty 
+            historyJson.isNotEmpty 
                 ? _parseJsonList(historyJson) 
                 : [];
         final history = historyList

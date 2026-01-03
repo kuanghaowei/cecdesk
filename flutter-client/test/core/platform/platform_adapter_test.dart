@@ -1,5 +1,4 @@
 import 'dart:math';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:remote_desktop_client/src/core/platform/desktop_adapter.dart';
 import 'package:remote_desktop_client/src/core/platform/mobile_adapter.dart' as mobile;

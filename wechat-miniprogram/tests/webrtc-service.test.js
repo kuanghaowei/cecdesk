@@ -57,6 +57,9 @@ const mockWx = {
 // 设置全局 wx 对象
 global.wx = mockWx;
 
+// Mock requestAnimationFrame for Node.js environment
+global.requestAnimationFrame = (callback) => setTimeout(callback, 16);
+
 describe('WebRTC Service Tests', () => {
   let webrtcService;
 
@@ -180,8 +183,10 @@ describe('Canvas Renderer Tests', () => {
     test('should convert remote coordinates to screen coordinates', () => {
       const screenCoords = canvasRenderer.remoteToScreen(960, 540, 1920, 1080);
       
-      expect(screenCoords.x).toBe(188); // 960 * 375 / 1920
-      expect(screenCoords.y).toBe(333); // 540 * 667 / 1080
+      // 960 * 375 / 1920 = 187.5 -> rounds to 188
+      // 540 * 667 / 1080 = 333.5 -> rounds to 334
+      expect(screenCoords.x).toBe(188);
+      expect(screenCoords.y).toBe(334);
     });
 
     test('should track FPS correctly', () => {

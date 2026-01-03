@@ -516,7 +516,7 @@ class PerformanceService extends StateNotifier<PerformanceState> {
 
   /// Collect current performance metrics
   void _collectMetrics() {
-    final (frameCount, frameBytes, droppedFrames) = _frameBufferManager.stats;
+    final (frameCount, frameBytes, _) = _frameBufferManager.stats;
     final avgLatency = _transmissionOptimizer.avgLatency;
     final inputLatency = _inputOptimizer.avgLatency;
     final currentBitrate = _transmissionOptimizer.currentBitrate;

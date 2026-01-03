@@ -117,6 +117,7 @@ class RemoteControlSettings {
 class DeviceManagementService {
   static const String _deviceListKey = 'device_list';
   static const String _settingsKey = 'remote_control_settings';
+  // ignore: unused_field
   static const String _thisDeviceKey = 'this_device';
 
   final SecureStorageService _secureStorage;

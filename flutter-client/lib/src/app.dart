@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'features/connection/presentation/pages/connection_page.dart';
-import 'features/remote_desktop/presentation/pages/remote_desktop_page.dart';
-import 'features/settings/presentation/pages/settings_page.dart';
 import 'core/theme/app_theme.dart';
 import 'core/routing/app_router.dart';
 
