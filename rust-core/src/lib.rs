@@ -78,11 +78,8 @@ pub use crate::ffi::*;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_library_initialization() {
         // Basic smoke test to ensure library loads
-        assert!(true);
     }
 }

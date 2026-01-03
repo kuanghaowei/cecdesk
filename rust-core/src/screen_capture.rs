@@ -131,6 +131,7 @@ impl Default for AdaptiveBitrateConfig {
 }
 
 pub struct ScreenCapturer {
+    #[allow(dead_code)]
     id: String,
     current_display: Option<String>,
     capture_options: Arc<RwLock<CaptureOptions>>,
@@ -443,7 +444,14 @@ impl ScreenCapturer {
     }
 }
 
+impl Default for ScreenCapturer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 pub struct AudioCapturer {
+    #[allow(dead_code)]
     id: String,
     capture_options: Arc<RwLock<AudioCaptureOptions>>,
     is_capturing: Arc<RwLock<bool>>,
@@ -560,6 +568,12 @@ impl AudioCapturer {
 
     pub async fn is_capturing(&self) -> bool {
         *self.is_capturing.read().await
+    }
+}
+
+impl Default for AudioCapturer {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

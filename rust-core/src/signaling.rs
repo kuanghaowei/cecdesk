@@ -8,7 +8,7 @@ use futures_util::{SinkExt, StreamExt};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use uuid::Uuid;
@@ -131,6 +131,7 @@ pub struct SignalingMetrics {
 }
 
 /// Internal state for tracking signaling exchanges
+#[allow(dead_code)]
 #[derive(Debug)]
 struct SignalingExchange {
     start_time: Instant,
@@ -620,7 +621,7 @@ impl SignalingClient {
     /// Get event receiver for consuming signaling events
     pub async fn take_event_receiver(&self) -> mpsc::UnboundedReceiver<SignalingEvent> {
         let mut receiver = self.event_receiver.lock().await;
-        let (new_sender, new_receiver) = mpsc::unbounded_channel();
+        let (_new_sender, new_receiver) = mpsc::unbounded_channel();
         // Note: In production, we'd need a better way to handle multiple consumers
         std::mem::replace(&mut *receiver, new_receiver)
     }

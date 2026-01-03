@@ -162,3 +162,9 @@ impl FileTransfer {
         self.max_file_size
     }
 }
+
+impl Default for FileTransfer {
+    fn default() -> Self {
+        Self::new()
+    }
+}

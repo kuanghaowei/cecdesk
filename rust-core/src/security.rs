@@ -304,6 +304,12 @@ pub enum SecurityEventType {
     SessionTerminated,
 }
 
+/// Type alias for threat callback functions
+type ThreatCallback = Box<dyn Fn(SecurityThreat) + Send + Sync>;
+
+/// Type alias for old session keys with expiration
+type OldSessionKeys = HashMap<String, Vec<(SessionKey, Instant)>>;
+
 /// Security Manager - handles all encryption and security operations
 pub struct SecurityManager {
     config: SecurityConfig,
@@ -312,7 +318,7 @@ pub struct SecurityManager {
     dtls_config: DtlsSrtpConfig,
     tls_config: TlsConfig,
     security_events: Arc<RwLock<Vec<SecurityEvent>>>,
-    threat_callbacks: Arc<RwLock<Vec<Box<dyn Fn(SecurityThreat) + Send + Sync>>>>,
+    threat_callbacks: Arc<RwLock<Vec<ThreatCallback>>>,
     /// Key rotation configuration
     key_rotation_config: KeyRotationConfig,
     /// Threat detection configuration
@@ -326,7 +332,7 @@ pub struct SecurityManager {
     /// Revoked certificate fingerprints
     revoked_certificates: Arc<RwLock<HashSet<String>>>,
     /// Old session keys for grace period (session_id -> old keys with expiration)
-    old_session_keys: Arc<RwLock<HashMap<String, Vec<(SessionKey, Instant)>>>>,
+    old_session_keys: Arc<RwLock<OldSessionKeys>>,
 }
 
 impl SecurityManager {
@@ -812,10 +818,10 @@ impl SecurityManager {
         let session_ids: Vec<String> = self.session_keys.read().await.keys().cloned().collect();
 
         for session_id in session_ids {
-            if self.needs_key_rotation(&session_id).await {
-                if self.rotate_session_key(&session_id).await.is_ok() {
-                    rotated_sessions.push(session_id);
-                }
+            if self.needs_key_rotation(&session_id).await
+                && self.rotate_session_key(&session_id).await.is_ok()
+            {
+                rotated_sessions.push(session_id);
             }
         }
 
@@ -1218,7 +1224,9 @@ impl SecurityManager {
             let unlock_time =
                 now + Duration::from_secs(self.threat_detection_config.lockout_duration_secs);
             tracker.lockouts.insert(identifier.to_string(), unlock_time);
-            tracker.attempts.get_mut(identifier).map(|a| a.clear());
+            if let Some(a) = tracker.attempts.get_mut(identifier) {
+                a.clear();
+            }
 
             tracing::warn!(
                 "Account locked due to too many failed attempts: {}",
@@ -1371,7 +1379,7 @@ impl SecurityManager {
         }
 
         let secret = EphemeralSecret::random_from_rng(OsRng);
-        let public = PublicKey::from(&secret);
+        let _public = PublicKey::from(&secret);
 
         let mut remote_key_bytes = [0u8; 32];
         remote_key_bytes.copy_from_slice(remote_public_key);

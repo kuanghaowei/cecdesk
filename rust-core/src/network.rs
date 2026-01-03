@@ -1,9 +1,8 @@
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::net::{IpAddr, Ipv4Addr, Ipv6Addr, SocketAddr};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 use tokio::sync::{mpsc, Mutex, RwLock};
 use uuid::Uuid;
 
@@ -110,6 +109,7 @@ pub enum IceProtocol {
 }
 
 pub struct NetworkManager {
+    #[allow(dead_code)]
     id: String,
     preferred_protocol: Arc<RwLock<NetworkProtocol>>,
     stun_servers: Arc<RwLock<Vec<StunServer>>>,
@@ -122,6 +122,12 @@ pub struct NetworkManager {
     is_monitoring: Arc<RwLock<bool>>,
     ipv6_available: Arc<RwLock<bool>>,
     ipv4_available: Arc<RwLock<bool>>,
+}
+
+impl Default for NetworkManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl NetworkManager {
@@ -291,7 +297,7 @@ impl NetworkManager {
         for server in servers.iter() {
             tracing::debug!("Trying STUN server: {}", server.url);
 
-            match self.stun_binding_request(&server).await {
+            match self.stun_binding_request(server).await {
                 Ok(reflexive_addr) => {
                     tracing::info!(
                         "STUN binding successful, reflexive address: {:?}",
@@ -309,7 +315,7 @@ impl NetworkManager {
         Ok(ConnectionType::Unknown)
     }
 
-    async fn stun_binding_request(&self, server: &StunServer) -> Result<SocketAddr> {
+    async fn stun_binding_request(&self, _server: &StunServer) -> Result<SocketAddr> {
         // Placeholder - would perform actual STUN binding request
         // Returns the server-reflexive address
         Ok(SocketAddr::new(
@@ -328,7 +334,7 @@ impl NetworkManager {
         for server in servers.iter() {
             tracing::debug!("Trying TURN server: {}", server.url);
 
-            match self.turn_allocate_request(&server).await {
+            match self.turn_allocate_request(server).await {
                 Ok(relay_addr) => {
                     tracing::info!(
                         "TURN allocation successful, relay address: {:?}",
@@ -346,7 +352,7 @@ impl NetworkManager {
         Err(anyhow::anyhow!("All TURN servers failed"))
     }
 
-    async fn turn_allocate_request(&self, server: &TurnServer) -> Result<SocketAddr> {
+    async fn turn_allocate_request(&self, _server: &TurnServer) -> Result<SocketAddr> {
         // Placeholder - would perform actual TURN allocation
         Ok(SocketAddr::new(
             IpAddr::V4(Ipv4Addr::new(198, 51, 100, 1)),
@@ -632,7 +638,7 @@ mod tests {
     #[tokio::test]
     async fn test_network_manager_creation() {
         let manager = NetworkManager::new();
-        assert!(manager.get_stun_servers().await.len() > 0);
+        assert!(!manager.get_stun_servers().await.is_empty());
     }
 
     #[tokio::test]

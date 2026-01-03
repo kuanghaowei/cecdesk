@@ -134,3 +134,9 @@ impl InputController {
         self.max_input_delay
     }
 }
+
+impl Default for InputController {
+    fn default() -> Self {
+        Self::new()
+    }
+}

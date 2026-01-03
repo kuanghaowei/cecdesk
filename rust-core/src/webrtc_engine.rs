@@ -73,22 +73,29 @@ pub enum WebRTCEvent {
 
 #[derive(Debug)]
 pub struct ConnectionInfo {
+    #[allow(dead_code)]
     id: String,
     peer_connection: Arc<RTCPeerConnection>,
     state: RTCPeerConnectionState,
+    #[allow(dead_code)]
     remote_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
 pub struct MediaStream {
+    #[allow(dead_code)]
     id: String,
+    #[allow(dead_code)]
     tracks: Vec<MediaTrack>,
 }
 
 #[derive(Debug, Clone)]
 pub struct MediaTrack {
+    #[allow(dead_code)]
     id: String,
+    #[allow(dead_code)]
     kind: String, // "audio" or "video"
+    #[allow(dead_code)]
     enabled: bool,
 }
 
@@ -315,7 +322,7 @@ impl WebRTCEngine {
             .get(connection_id)
             .ok_or_else(|| anyhow::anyhow!("Connection not found: {}", connection_id))?;
 
-        let stats = connection_info.peer_connection.get_stats().await;
+        let _stats = connection_info.peer_connection.get_stats().await;
 
         // Convert webrtc stats to our format
         Ok(ConnectionStats {

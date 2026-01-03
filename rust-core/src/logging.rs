@@ -235,7 +235,7 @@ impl LogManager {
                     .append(true)
                     .open(path)
                     .ok()
-                    .map(|f| BufWriter::new(f))
+                    .map(BufWriter::new)
             })
         } else {
             None
@@ -343,7 +343,7 @@ impl LogManager {
         let limit = limit.unwrap_or(logs.len());
 
         logs.iter()
-            .filter(|log| level.map_or(true, |l| log.level >= l))
+            .filter(|log| level.is_none_or(|l| log.level >= l))
             .take(limit)
             .cloned()
             .collect()

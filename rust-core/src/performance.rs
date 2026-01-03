@@ -13,7 +13,7 @@
 use std::collections::VecDeque;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 use tokio::sync::RwLock;
 
 /// Memory usage statistics
@@ -210,6 +210,7 @@ pub struct TransmissionOptimizer {
     current_bitrate: AtomicU64,
     min_bitrate: u64,
     max_bitrate: u64,
+    #[allow(dead_code)]
     packet_batch_size: AtomicUsize,
     latency_samples: Arc<RwLock<VecDeque<f64>>>,
     bandwidth_samples: Arc<RwLock<VecDeque<u64>>>,
@@ -477,7 +478,7 @@ impl PerformanceMonitor {
     /// Collect current performance metrics
     pub async fn collect_metrics(&self) -> PerformanceMetrics {
         let (allocated, reused) = self.buffer_pool.stats();
-        let (frame_count, frame_bytes, dropped) = self.frame_buffer.stats().await;
+        let (frame_count, frame_bytes, _dropped) = self.frame_buffer.stats().await;
         let avg_latency = self.transmission_optimizer.get_avg_latency().await;
         let input_latency = self.input_optimizer.get_avg_latency().await;
         let current_bitrate = self.transmission_optimizer.get_current_bitrate();
@@ -569,6 +570,7 @@ pub struct PerformanceSummary {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::time::Duration;
 
     #[tokio::test]
     async fn test_buffer_pool() {
@@ -576,7 +578,7 @@ mod tests {
 
         // Acquire buffers
         let buf1 = pool.acquire().await;
-        let buf2 = pool.acquire().await;
+        let _buf2 = pool.acquire().await;
 
         let (allocated, reused) = pool.stats();
         assert_eq!(allocated, 2);
@@ -609,7 +611,7 @@ mod tests {
                 .await;
         }
 
-        let (count, bytes, dropped) = manager.stats().await;
+        let (count, _bytes, dropped) = manager.stats().await;
         assert_eq!(count, 3); // Max buffers
         assert_eq!(dropped, 2); // 2 frames dropped
     }
@@ -625,7 +627,7 @@ mod tests {
         }
 
         let bitrate = optimizer.adapt_bitrate().await;
-        assert!(bitrate >= 500_000 && bitrate <= 10_000_000);
+        assert!((500_000..=10_000_000).contains(&bitrate));
 
         // Record poor conditions
         for _ in 0..10 {

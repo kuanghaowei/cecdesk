@@ -31,7 +31,7 @@ pub enum Platform {
     Windows,
     MacOS,
     Linux,
-    IOS,
+    Ios,
     Android,
     HarmonyOS,
     Web,
@@ -44,7 +44,7 @@ impl Platform {
             Platform::Windows,
             Platform::MacOS,
             Platform::Linux,
-            Platform::IOS,
+            Platform::Ios,
             Platform::Android,
             Platform::HarmonyOS,
             Platform::Web,
@@ -57,11 +57,12 @@ impl Platform {
     }
 
     pub fn mobile() -> Vec<Platform> {
-        vec![Platform::IOS, Platform::Android, Platform::HarmonyOS]
+        vec![Platform::Ios, Platform::Android, Platform::HarmonyOS]
     }
 }
 
 /// Simulated platform capabilities for testing
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct PlatformCapabilities {
     pub platform: Platform,
@@ -85,7 +86,7 @@ impl PlatformCapabilities {
                 supports_keyboard_input: true,
                 supports_file_transfer: true,
             },
-            Platform::IOS | Platform::Android | Platform::HarmonyOS => Self {
+            Platform::Ios | Platform::Android | Platform::HarmonyOS => Self {
                 platform,
                 supports_hardware_acceleration: true,
                 supports_multi_display: false,
@@ -117,6 +118,7 @@ impl PlatformCapabilities {
 }
 
 /// Cross-platform connection test result
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct ConnectionTestResult {
     pub source_platform: Platform,
@@ -128,6 +130,7 @@ pub struct ConnectionTestResult {
 }
 
 /// Performance test result
+#[allow(dead_code)]
 #[derive(Debug)]
 pub struct PerformanceTestResult {
     pub platform: Platform,
@@ -161,10 +164,10 @@ pub async fn simulate_cross_platform_connection(
         | (Platform::Linux, Platform::Linux) => ConnectionType::Direct,
 
         // Mobile to desktop or mobile to mobile - may need STUN
-        (Platform::IOS, _)
+        (Platform::Ios, _)
         | (Platform::Android, _)
         | (Platform::HarmonyOS, _)
-        | (_, Platform::IOS)
+        | (_, Platform::Ios)
         | (_, Platform::Android)
         | (_, Platform::HarmonyOS) => ConnectionType::StunDirect,
 
@@ -208,7 +211,7 @@ pub async fn simulate_input_latency_test(platform: Platform) -> f64 {
         // Simulate network round-trip based on platform
         let base_latency = match platform {
             Platform::Windows | Platform::MacOS | Platform::Linux => 20,
-            Platform::IOS | Platform::Android | Platform::HarmonyOS => 35,
+            Platform::Ios | Platform::Android | Platform::HarmonyOS => 35,
             Platform::Web => 45,
             Platform::WeChatMiniProgram => 55,
         };
@@ -230,7 +233,7 @@ pub async fn simulate_frame_rate_test(platform: Platform) -> f64 {
     // Apply quality preset based on platform
     let preset = match platform {
         Platform::Windows | Platform::MacOS | Platform::Linux => QualityPreset::High,
-        Platform::IOS | Platform::Android | Platform::HarmonyOS => QualityPreset::Balanced,
+        Platform::Ios | Platform::Android | Platform::HarmonyOS => QualityPreset::Balanced,
         Platform::Web => QualityPreset::Balanced,
         Platform::WeChatMiniProgram => QualityPreset::Low,
     };
@@ -254,7 +257,7 @@ pub async fn check_network_adaptability(conditions: NetworkConditions) -> bool {
 
     // Verify adaptation
     // Frame rate should be within valid range
-    options.frame_rate >= 15 && options.frame_rate <= 60
+    (15..=60).contains(&options.frame_rate)
 }
 
 #[cfg(test)]
@@ -482,7 +485,7 @@ mod tests {
             Platform::Windows,
             Platform::MacOS,
             Platform::Linux,
-            Platform::IOS,
+            Platform::Ios,
             Platform::Android,
             Platform::HarmonyOS,
             Platform::Web,
@@ -532,7 +535,7 @@ mod property_tests {
                 let options = capturer.get_current_options().await;
 
                 // Frame rate should always be within valid range
-                assert!(options.frame_rate >= 15 && options.frame_rate <= 60,
+                assert!((15..=60).contains(&options.frame_rate),
                     "Frame rate {} outside valid range 15-60", options.frame_rate);
             });
         }

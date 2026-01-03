@@ -3,7 +3,7 @@
 //! Implements device ID generation, temporary access codes, and permission management.
 //! Requirements: 5.1, 5.2, 5.4, 5.5, 5.7
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;

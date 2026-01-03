@@ -1,8 +1,5 @@
-use anyhow::Result;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use std::net::{IpAddr, SocketAddr};
-use std::time::Duration;
 
 /// NAT 类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -330,7 +327,7 @@ impl DiagnosticsManager {
 
     /// 检查服务器
     async fn check_server(&self, name: &str, url: &str) -> ServerStatus {
-        let mut status = ServerStatus::new(name, url);
+        let status = ServerStatus::new(name, url);
 
         if url.is_empty() {
             return status.failure("URL未配置");
