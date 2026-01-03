@@ -13,6 +13,9 @@ pub mod signaling;
 pub mod webrtc_engine;
 
 #[cfg(test)]
+pub mod webrtc_mock;
+
+#[cfg(test)]
 mod signaling_test;
 
 #[cfg(test)]

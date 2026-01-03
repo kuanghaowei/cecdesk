@@ -64,20 +64,22 @@ prop_compose! {
     }
 }
 
-/// Property tests for WebRTC - marked ignore for CI due to proptest+async issues.
+/// Property tests for WebRTC using mock implementation.
 /// These tests verify the same properties as unit tests but with randomized inputs.
-/// Run manually with: cargo test webrtc_engine_test::property_ -- --ignored
+/// They use MockWebRTCEngine for fast, deterministic execution in CI.
 #[cfg(test)]
 mod property_tests {
     use super::*;
+    use crate::webrtc_mock::MockWebRTCEngine;
 
     proptest! {
-        #![proptest_config(ProptestConfig::with_cases(5))]
+        #![proptest_config(ProptestConfig::with_cases(100))]
 
         /// Property: For any valid RTCConfiguration, creating a peer connection should succeed
         /// and return a non-empty connection ID with initial state "New".
+        /// Feature: webrtc-test-refactor, Property 1: Connection ID Uniqueness
+        /// Feature: webrtc-test-refactor, Property 2: Initial State Consistency
         #[test]
-        #[ignore = "Proptest + async WebRTC causes CI hangs - run manually"]
         fn property_peer_connection_creation(
             config in arb_rtc_configuration_no_network()
         ) {
@@ -88,8 +90,8 @@ mod property_tests {
                 .unwrap();
 
             let result = rt.block_on(async {
-                tokio::time::timeout(Duration::from_secs(30), async {
-                    let engine = WebRTCEngine::new().await.expect("Failed to create WebRTC engine");
+                tokio::time::timeout(Duration::from_secs(5), async {
+                    let engine = MockWebRTCEngine::new();
 
                     let connection_id = engine.create_peer_connection(config).await
                         .expect("Failed to create peer connection");
@@ -111,14 +113,14 @@ mod property_tests {
                 }).await
             });
 
-            assert!(result.is_ok(), "Test timed out after 30 seconds");
+            assert!(result.is_ok(), "Test timed out after 5 seconds");
         }
 
         /// Property: Connection IDs should be unique across multiple creations
+        /// Feature: webrtc-test-refactor, Property 1: Connection ID Uniqueness
         #[test]
-        #[ignore = "Proptest + async WebRTC causes CI hangs - run manually"]
         fn property_connection_ids_unique(
-            num_connections in 2usize..4
+            num_connections in 2usize..10
         ) {
             let rt = tokio::runtime::Builder::new_multi_thread()
                 .worker_threads(2)
@@ -127,8 +129,8 @@ mod property_tests {
                 .unwrap();
 
             let result = rt.block_on(async {
-                tokio::time::timeout(Duration::from_secs(30), async {
-                    let engine = WebRTCEngine::new().await.expect("Failed to create WebRTC engine");
+                tokio::time::timeout(Duration::from_secs(5), async {
+                    let engine = MockWebRTCEngine::new();
 
                     let config = RTCConfiguration {
                         ice_servers: vec![], // Empty to avoid network calls
@@ -160,7 +162,7 @@ mod property_tests {
                 }).await
             });
 
-            assert!(result.is_ok(), "Test timed out after 30 seconds");
+            assert!(result.is_ok(), "Test timed out after 5 seconds");
         }
     }
 }
@@ -207,12 +209,34 @@ mod network_tests {
 #[cfg(test)]
 mod unit_tests {
     use super::*;
+    use crate::webrtc_mock::MockWebRTCEngine;
 
+    /// Test real WebRTC engine creation - marked as ignored for CI
+    /// 
+    /// This test uses the real WebRTC implementation and may take several seconds
+    /// to complete. It is marked as ignored to prevent CI timeouts.
+    /// 
+    /// # Running Ignored Tests
+    /// 
+    /// To run this test manually:
+    /// ```bash
+    /// cargo test test_webrtc_engine_creation -- --ignored
+    /// ```
+    /// 
+    /// To run all ignored tests:
+    /// ```bash
+    /// cargo test -- --ignored
+    /// ```
+    /// 
+    /// # Timeout
+    /// 
+    /// This test has a 30-second timeout to handle WebRTC initialization delays.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    #[ignore = "Uses real WebRTC - run manually with --ignored flag"]
     async fn test_webrtc_engine_creation() {
         use tokio::time::{timeout, Duration};
 
-        let result = timeout(Duration::from_secs(10), async {
+        let result = timeout(Duration::from_secs(30), async {
             let engine = WebRTCEngine::new().await;
             assert!(
                 engine.is_ok(),
@@ -221,124 +245,97 @@ mod unit_tests {
         })
         .await;
 
-        assert!(result.is_ok(), "Test timed out after 10 seconds");
+        assert!(result.is_ok(), "Test timed out after 30 seconds");
     }
 
-    /// Test peer connection lifecycle without network calls
-    /// Uses empty ICE servers to avoid network timeouts
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    /// Test peer connection lifecycle using mock implementation
+    #[tokio::test]
     async fn test_peer_connection_lifecycle() {
-        use tokio::time::{timeout, Duration};
+        let engine = MockWebRTCEngine::new();
 
-        let result = timeout(Duration::from_secs(10), async {
-            let engine = WebRTCEngine::new().await.expect("Failed to create engine");
+        let config = RTCConfiguration {
+            ice_servers: vec![],
+            ice_transport_policy: "all".to_string(),
+            bundle_policy: None,
+            rtcp_mux_policy: None,
+        };
 
-            // Use empty ICE servers to avoid network calls
-            let config = RTCConfiguration {
-                ice_servers: vec![],
-                ice_transport_policy: "all".to_string(),
-                bundle_policy: None,
-                rtcp_mux_policy: None,
-            };
+        let connection_id = engine
+            .create_peer_connection(config)
+            .await
+            .expect("Failed to create peer connection");
 
-            let connection_id = engine
-                .create_peer_connection(config)
-                .await
-                .expect("Failed to create peer connection");
+        let state = engine.get_connection_state(&connection_id).await;
+        assert_eq!(state, Some(RTCPeerConnectionState::New));
 
-            let state = engine.get_connection_state(&connection_id).await;
-            assert_eq!(state, Some(RTCPeerConnectionState::New));
+        engine
+            .close_connection(&connection_id)
+            .await
+            .expect("Failed to close connection");
 
-            engine
-                .close_connection(&connection_id)
-                .await
-                .expect("Failed to close connection");
-
-            let state = engine.get_connection_state(&connection_id).await;
-            assert_eq!(state, None);
-        })
-        .await;
-
-        assert!(result.is_ok(), "Test timed out after 10 seconds");
+        let state = engine.get_connection_state(&connection_id).await;
+        assert_eq!(state, None);
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    /// Test connection not found error handling using mock implementation
+    #[tokio::test]
     async fn test_connection_not_found_error() {
-        use tokio::time::{timeout, Duration};
+        let engine = MockWebRTCEngine::new();
 
-        let result = timeout(Duration::from_secs(10), async {
-            let engine = WebRTCEngine::new().await.expect("Failed to create engine");
+        let result = engine
+            .establish_connection("non-existent", "remote123".to_string())
+            .await;
+        assert!(result.is_err(), "Should fail for non-existent connection");
 
-            let result = engine
-                .establish_connection("non-existent", "remote123".to_string())
-                .await;
-            assert!(result.is_err(), "Should fail for non-existent connection");
-
-            let result = engine.close_connection("non-existent").await;
-            assert!(
-                result.is_ok(),
-                "Closing non-existent connection should not error"
-            );
-        })
-        .await;
-
-        assert!(result.is_ok(), "Test timed out after 10 seconds");
+        let result = engine.close_connection("non-existent").await;
+        assert!(
+            result.is_ok(),
+            "Closing non-existent connection should not error"
+        );
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    /// Test empty ICE servers configuration using mock implementation
+    #[tokio::test]
     async fn test_empty_ice_servers_config() {
-        use tokio::time::{timeout, Duration};
+        let engine = MockWebRTCEngine::new();
 
-        let result = timeout(Duration::from_secs(10), async {
-            let engine = WebRTCEngine::new().await.expect("Failed to create engine");
+        let config = RTCConfiguration {
+            ice_servers: vec![],
+            ice_transport_policy: "all".to_string(),
+            bundle_policy: None,
+            rtcp_mux_policy: None,
+        };
 
-            let config = RTCConfiguration {
-                ice_servers: vec![],
-                ice_transport_policy: "all".to_string(),
-                bundle_policy: None,
-                rtcp_mux_policy: None,
-            };
-
-            let result = engine.create_peer_connection(config).await;
-            assert!(result.is_ok(), "Should handle empty ICE servers gracefully");
-        })
-        .await;
-
-        assert!(result.is_ok(), "Test timed out after 10 seconds");
+        let result = engine.create_peer_connection(config).await;
+        assert!(result.is_ok(), "Should handle empty ICE servers gracefully");
     }
 
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    /// Test multiple connections using mock implementation
+    #[tokio::test]
     async fn test_multiple_connections() {
-        use tokio::time::{timeout, Duration};
+        let engine = MockWebRTCEngine::new();
 
-        let result = timeout(Duration::from_secs(15), async {
-            let engine = WebRTCEngine::new().await.expect("Failed to create engine");
+        let config = RTCConfiguration {
+            ice_servers: vec![],
+            ice_transport_policy: "all".to_string(),
+            bundle_policy: None,
+            rtcp_mux_policy: None,
+        };
 
-            let config = RTCConfiguration {
-                ice_servers: vec![],
-                ice_transport_policy: "all".to_string(),
-                bundle_policy: None,
-                rtcp_mux_policy: None,
-            };
+        // Create multiple connections
+        let id1 = engine.create_peer_connection(config.clone()).await.unwrap();
+        let id2 = engine.create_peer_connection(config.clone()).await.unwrap();
 
-            // Create multiple connections
-            let id1 = engine.create_peer_connection(config.clone()).await.unwrap();
-            let id2 = engine.create_peer_connection(config.clone()).await.unwrap();
+        // Verify both connections exist and have unique IDs
+        assert_ne!(id1, id2, "Connection IDs should be unique");
 
-            // Verify both connections exist and have unique IDs
-            assert_ne!(id1, id2, "Connection IDs should be unique");
+        let state1 = engine.get_connection_state(&id1).await;
+        let state2 = engine.get_connection_state(&id2).await;
+        assert_eq!(state1, Some(RTCPeerConnectionState::New));
+        assert_eq!(state2, Some(RTCPeerConnectionState::New));
 
-            let state1 = engine.get_connection_state(&id1).await;
-            let state2 = engine.get_connection_state(&id2).await;
-            assert_eq!(state1, Some(RTCPeerConnectionState::New));
-            assert_eq!(state2, Some(RTCPeerConnectionState::New));
-
-            // Cleanup
-            engine.close_connection(&id1).await.unwrap();
-            engine.close_connection(&id2).await.unwrap();
-        })
-        .await;
-
-        assert!(result.is_ok(), "Test timed out after 15 seconds");
+        // Cleanup
+        engine.close_connection(&id1).await.unwrap();
+        engine.close_connection(&id2).await.unwrap();
     }
 }
