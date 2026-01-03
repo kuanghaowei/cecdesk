@@ -44,7 +44,7 @@ proptest! {
 
     /// Property: For any valid RTCConfiguration, creating a peer connection should succeed
     /// and return a non-empty connection ID with initial state "New".
-    /// 
+    ///
     /// Note: This test only validates connection creation, not network establishment,
     /// to avoid CI timeouts from unreachable STUN servers.
     #[test]
@@ -83,7 +83,7 @@ proptest! {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let engine = WebRTCEngine::new().await.expect("Failed to create WebRTC engine");
-            
+
             let mut connection_ids = Vec::new();
             for config in configs {
                 let id = engine.create_peer_connection(config).await
