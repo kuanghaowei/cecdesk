@@ -63,3 +63,4 @@ cd flutter-client && flutter build linux
 ## License
 
 MIT
+
