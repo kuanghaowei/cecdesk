@@ -580,14 +580,16 @@ class MonitoringService extends StateNotifier<MonitoringState> {
       } else if (!signalingServer.reachable) {
         overallStatus = DiagnosticStatus.critical;
         recommendations.add('无法连接信令服务器，请检查网络设置');
-      // ignore: dead_code
-      } else if (natType == NatType.symmetric || natType == NatType.symmetricUdpFirewall) {
-        if (!turnServers.any((s) => s.reachable)) {
-          overallStatus = DiagnosticStatus.warning;
-          recommendations.add('检测到对称NAT，建议确保TURN服务器可用');
-        } else {
-          recommendations.add('检测到对称NAT，将使用TURN中继');
-        }
+      } else {
+        // Check for restrictive NAT types that may need TURN relay
+        // Note: natType is currently hardcoded for development; in production
+        // this would be dynamically detected
+        _checkNatTypeRecommendations(
+          natType,
+          turnServers,
+          recommendations,
+          (status) => overallStatus = status,
+        );
       }
 
       final diagnostics = NetworkDiagnostics(
@@ -624,6 +626,24 @@ class MonitoringService extends StateNotifier<MonitoringState> {
       error('Diagnostics', '网络诊断失败: $e');
       state = state.copyWith(isDiagnosticRunning: false);
       rethrow;
+    }
+  }
+
+  /// Helper method to check NAT type and add recommendations
+  /// Extracted to avoid dead code warnings when natType is hardcoded during development
+  void _checkNatTypeRecommendations(
+    NatType natType,
+    List<ServerStatus> turnServers,
+    List<String> recommendations,
+    void Function(DiagnosticStatus) setStatus,
+  ) {
+    if (natType == NatType.symmetric || natType == NatType.symmetricUdpFirewall) {
+      if (!turnServers.any((s) => s.reachable)) {
+        setStatus(DiagnosticStatus.warning);
+        recommendations.add('检测到对称NAT，建议确保TURN服务器可用');
+      } else {
+        recommendations.add('检测到对称NAT，将使用TURN中继');
+      }
     }
   }
 

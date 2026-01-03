@@ -154,15 +154,16 @@ mod unit_tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_webrtc_engine_creation() {
         use tokio::time::{timeout, Duration};
-        
+
         let result = timeout(Duration::from_secs(10), async {
             let engine = WebRTCEngine::new().await;
             assert!(
                 engine.is_ok(),
                 "WebRTC engine should be created successfully"
             );
-        }).await;
-        
+        })
+        .await;
+
         assert!(result.is_ok(), "Test timed out after 10 seconds");
     }
 
@@ -171,7 +172,7 @@ mod unit_tests {
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_peer_connection_lifecycle() {
         use tokio::time::{timeout, Duration};
-        
+
         let result = timeout(Duration::from_secs(10), async {
             let engine = WebRTCEngine::new().await.expect("Failed to create engine");
 
@@ -198,15 +199,16 @@ mod unit_tests {
 
             let state = engine.get_connection_state(&connection_id).await;
             assert_eq!(state, None);
-        }).await;
-        
+        })
+        .await;
+
         assert!(result.is_ok(), "Test timed out after 10 seconds");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_connection_not_found_error() {
         use tokio::time::{timeout, Duration};
-        
+
         let result = timeout(Duration::from_secs(10), async {
             let engine = WebRTCEngine::new().await.expect("Failed to create engine");
 
@@ -220,15 +222,16 @@ mod unit_tests {
                 result.is_ok(),
                 "Closing non-existent connection should not error"
             );
-        }).await;
-        
+        })
+        .await;
+
         assert!(result.is_ok(), "Test timed out after 10 seconds");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_empty_ice_servers_config() {
         use tokio::time::{timeout, Duration};
-        
+
         let result = timeout(Duration::from_secs(10), async {
             let engine = WebRTCEngine::new().await.expect("Failed to create engine");
 
@@ -241,15 +244,16 @@ mod unit_tests {
 
             let result = engine.create_peer_connection(config).await;
             assert!(result.is_ok(), "Should handle empty ICE servers gracefully");
-        }).await;
-        
+        })
+        .await;
+
         assert!(result.is_ok(), "Test timed out after 10 seconds");
     }
 
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_multiple_connections() {
         use tokio::time::{timeout, Duration};
-        
+
         let result = timeout(Duration::from_secs(15), async {
             let engine = WebRTCEngine::new().await.expect("Failed to create engine");
 
@@ -275,8 +279,9 @@ mod unit_tests {
             // Cleanup
             engine.close_connection(&id1).await.unwrap();
             engine.close_connection(&id2).await.unwrap();
-        }).await;
-        
+        })
+        .await;
+
         assert!(result.is_ok(), "Test timed out after 15 seconds");
     }
 }
