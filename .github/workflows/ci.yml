@@ -82,6 +82,7 @@ jobs:
       
       - name: Run tests
         run: flutter test --coverage
+        timeout-minutes: 10
       
       - name: Upload coverage
         uses: codecov/codecov-action@v4

@@ -15,7 +15,6 @@ use uuid::Uuid;
 /// Mock connection information stored in the mock engine
 #[derive(Debug, Clone)]
 struct MockConnectionInfo {
-    id: String,
     state: RTCPeerConnectionState,
     remote_id: Option<String>,
 }
@@ -45,7 +44,6 @@ impl MockWebRTCEngine {
         let connection_id = Uuid::new_v4().to_string();
 
         let connection_info = MockConnectionInfo {
-            id: connection_id.clone(),
             state: RTCPeerConnectionState::New,
             remote_id: None,
         };

@@ -20,7 +20,8 @@ void main() {
         fileTransferService.cancelTransfer(taskId);
       }
       // Delay to allow timers to be cancelled
-      await Future.delayed(const Duration(milliseconds: 50));
+      await Future.delayed(const Duration(milliseconds: 100));
+      // Dispose container (which will automatically dispose the service)
       container.dispose();
     });
 
@@ -203,6 +204,6 @@ void main() {
       expect(state.activeTasks.length, 1);
       expect(state.completedTasks.length, 1);
       expect(state.pausedTasks.length, 1);
-    });
+    }, timeout: const Timeout(Duration(seconds: 5)));
   });
 }
