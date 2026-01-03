@@ -269,11 +269,37 @@ jobs:
       - name: Build Windows
         run: flutter build windows --release
       
+      - name: Get version
+        id: version
+        shell: bash
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Package Windows executable
+        shell: pwsh
+        run: |
+          $version = "${{ steps.version.outputs.version }}"
+          $outputDir = "build/windows/x64/runner/Release"
+          $packageName = "RemoteDesktop-$version-windows-x64"
+          
+          # 创建打包目录
+          New-Item -ItemType Directory -Force -Path "dist"
+          
+          # 复制所有文件到打包目录
+          Copy-Item -Recurse "$outputDir/*" "dist/$packageName/"
+          
+          # 创建 zip 包
+          Compress-Archive -Path "dist/$packageName" -DestinationPath "dist/$packageName.zip"
+      
       - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
-          path: flutter-client/build/windows/x64/runner/Release/
+          path: flutter-client/dist/*.zip
 
   build-macos:
     name: Build macOS
@@ -298,11 +324,43 @@ jobs:
       - name: Build macOS
         run: flutter build macos --release
       
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Package macOS app
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          APP_NAME="remote_desktop_client"
+          DMG_NAME="RemoteDesktop-$VERSION-macos"
+          
+          mkdir -p dist
+          
+          # 创建 DMG
+          cd build/macos/Build/Products/Release
+          
+          # 创建临时目录用于 DMG
+          mkdir -p dmg_temp
+          cp -R "$APP_NAME.app" dmg_temp/
+          
+          # 创建 DMG 文件
+          hdiutil create -volname "$APP_NAME" -srcfolder dmg_temp -ov -format UDZO "../../../../../dist/$DMG_NAME.dmg"
+          
+          # 同时创建 zip 备份
+          zip -r "../../../../../dist/$DMG_NAME.zip" "$APP_NAME.app"
+      
       - name: Upload macOS build
         uses: actions/upload-artifact@v4
         with:
           name: macos-build
-          path: flutter-client/build/macos/Build/Products/Release/
+          path: |
+            flutter-client/dist/*.dmg
+            flutter-client/dist/*.zip
 
   build-linux:
     name: Build Linux
@@ -332,11 +390,44 @@ jobs:
       - name: Build Linux
         run: flutter build linux --release
       
+      - name: Get version
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          else
+            echo "version=dev-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Package Linux executable
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          PACKAGE_NAME="RemoteDesktop-$VERSION-linux-x64"
+          
+          mkdir -p dist
+          
+          # 复制 bundle 到打包目录
+          cp -r build/linux/x64/release/bundle "dist/$PACKAGE_NAME"
+          
+          # 创建启动脚本
+          cat > "dist/$PACKAGE_NAME/run.sh" << 'EOF'
+          #!/bin/bash
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+          cd "$SCRIPT_DIR"
+          ./remote_desktop_client
+          EOF
+          chmod +x "dist/$PACKAGE_NAME/run.sh"
+          chmod +x "dist/$PACKAGE_NAME/remote_desktop_client"
+          
+          # 创建 tar.gz 包
+          cd dist
+          tar -czvf "$PACKAGE_NAME.tar.gz" "$PACKAGE_NAME"
+      
       - name: Upload Linux build
         uses: actions/upload-artifact@v4
         with:
           name: linux-build
-          path: flutter-client/build/linux/x64/release/bundle/
+          path: flutter-client/dist/*.tar.gz
 
 
   # ============================================
@@ -350,33 +441,64 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       
+      - name: Get version
+        id: version
+        run: echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+      
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts/
       
-      - name: Package artifacts
+      - name: Prepare release files
         run: |
-          cd artifacts
-          zip -r android-apk.zip android-apk/
-          zip -r android-aab.zip android-aab/
-          zip -r ios-build.zip ios-build/
-          zip -r web-build.zip web-build/
-          zip -r windows-build.zip windows-build/
-          zip -r macos-build.zip macos-build/
-          zip -r linux-build.zip linux-build/
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p release
+          
+          # Android APK
+          cp artifacts/android-apk/*.apk "release/RemoteDesktop-$VERSION-android.apk" 2>/dev/null || \
+            (cd artifacts/android-apk && zip -r "../../release/RemoteDesktop-$VERSION-android-apk.zip" .)
+          
+          # Android AAB
+          cp artifacts/android-aab/*.aab "release/RemoteDesktop-$VERSION-android.aab" 2>/dev/null || \
+            (cd artifacts/android-aab && zip -r "../../release/RemoteDesktop-$VERSION-android-aab.zip" .)
+          
+          # iOS
+          cd artifacts/ios-build && zip -r "../../release/RemoteDesktop-$VERSION-ios.zip" . && cd ../..
+          
+          # Web
+          cd artifacts/web-build && zip -r "../../release/RemoteDesktop-$VERSION-web.zip" . && cd ../..
+          
+          # Windows (已经是 zip)
+          cp artifacts/windows-build/*.zip release/ 2>/dev/null || true
+          
+          # macOS (DMG 和 zip)
+          cp artifacts/macos-build/*.dmg release/ 2>/dev/null || true
+          cp artifacts/macos-build/*.zip release/ 2>/dev/null || true
+          
+          # Linux (已经是 tar.gz)
+          cp artifacts/linux-build/*.tar.gz release/ 2>/dev/null || true
+          
+          # 列出所有发布文件
+          echo "=== Release files ==="
+          ls -la release/
       
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          files: |
-            artifacts/android-apk.zip
-            artifacts/android-aab.zip
-            artifacts/ios-build.zip
-            artifacts/web-build.zip
-            artifacts/windows-build.zip
-            artifacts/macos-build.zip
-            artifacts/linux-build.zip
+          name: "Remote Desktop ${{ steps.version.outputs.version }}"
+          body: |
+            ## 下载说明 / Download Instructions
+            
+            | 平台 / Platform | 文件 / File | 说明 / Notes |
+            |----------------|-------------|--------------|
+            | Windows | `*-windows-x64.zip` | 解压后运行 exe |
+            | macOS | `*-macos.dmg` | 双击安装 |
+            | Linux | `*-linux-x64.tar.gz` | 解压后运行 `./run.sh` |
+            | Android | `*-android.apk` | 直接安装 |
+            | iOS | `*-ios.zip` | 需要 Xcode 签名 |
+            | Web | `*-web.zip` | 部署到 Web 服务器 |
+          files: release/*
           generate_release_notes: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
