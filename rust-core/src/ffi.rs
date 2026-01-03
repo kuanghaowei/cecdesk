@@ -137,7 +137,9 @@ pub unsafe extern "C" fn webrtc_engine_send_data(
 /// # Safety
 /// - `server_url` must be a valid null-terminated C string
 #[no_mangle]
-pub unsafe extern "C" fn signaling_client_create(server_url: *const c_char) -> SignalingClientHandle {
+pub unsafe extern "C" fn signaling_client_create(
+    server_url: *const c_char,
+) -> SignalingClientHandle {
     if server_url.is_null() {
         return std::ptr::null_mut();
     }
