@@ -13,16 +13,14 @@ void main() {
     });
 
     tearDown(() async {
-      // Cancel all active transfers before disposing to avoid async issues
+      // Cancel ALL transfers (any status) before disposing to avoid async issues
       final state = container.read(fileTransferServiceProvider);
-      for (final transfer in state.tasks) {
-        if (transfer.status == FileTransferStatus.inProgress || 
-            transfer.status == FileTransferStatus.paused) {
-          fileTransferService.cancelTransfer(transfer.id);
-        }
+      final taskIds = state.tasks.map((t) => t.id).toList();
+      for (final taskId in taskIds) {
+        fileTransferService.cancelTransfer(taskId);
       }
-      // Small delay to allow async operations to complete
-      await Future.delayed(const Duration(milliseconds: 100));
+      // Delay to allow timers to be cancelled
+      await Future.delayed(const Duration(milliseconds: 50));
       container.dispose();
     });
 
@@ -76,7 +74,7 @@ void main() {
 
         final state = container.read(fileTransferServiceProvider);
         expect(state.tasks.first.status, FileTransferStatus.paused);
-      });
+      }, timeout: const Timeout(Duration(seconds: 5)));
     });
 
     group('cancelTransfer', () {
@@ -108,8 +106,15 @@ void main() {
           fileSize: 1000, // 1KB - 很快完成
         );
 
-        // 等待传输完成
-        await Future.delayed(const Duration(milliseconds: 500));
+        // 等待传输完成 (with timeout to prevent hanging)
+        var attempts = 0;
+        const maxAttempts = 20; // 2 seconds max
+        while (attempts < maxAttempts) {
+          await Future.delayed(const Duration(milliseconds: 100));
+          final state = container.read(fileTransferServiceProvider);
+          if (state.completedTasks.isNotEmpty) break;
+          attempts++;
+        }
 
         var state = container.read(fileTransferServiceProvider);
         expect(state.completedTasks.length, greaterThanOrEqualTo(0));
@@ -118,7 +123,7 @@ void main() {
 
         state = container.read(fileTransferServiceProvider);
         expect(state.completedTasks.length, 0);
-      });
+      }, timeout: const Timeout(Duration(seconds: 5)));
     });
   });
 

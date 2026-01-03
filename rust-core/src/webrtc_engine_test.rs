@@ -47,8 +47,8 @@ prop_compose! {
 }
 
 // Generator for RTCConfiguration with ICE servers - only for network tests
-#[allow(dead_code)]
 prop_compose! {
+    #[allow(dead_code)]
     fn arb_rtc_configuration_with_ice()(
         ice_servers in prop::collection::vec(arb_ice_server(), 1..3),
         ice_transport_policy in Just("all".to_string()),
