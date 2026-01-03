@@ -212,24 +212,24 @@ mod unit_tests {
     use crate::webrtc_mock::MockWebRTCEngine;
 
     /// Test real WebRTC engine creation - marked as ignored for CI
-    /// 
+    ///
     /// This test uses the real WebRTC implementation and may take several seconds
     /// to complete. It is marked as ignored to prevent CI timeouts.
-    /// 
+    ///
     /// # Running Ignored Tests
-    /// 
+    ///
     /// To run this test manually:
     /// ```bash
     /// cargo test test_webrtc_engine_creation -- --ignored
     /// ```
-    /// 
+    ///
     /// To run all ignored tests:
     /// ```bash
     /// cargo test -- --ignored
     /// ```
-    /// 
+    ///
     /// # Timeout
-    /// 
+    ///
     /// This test has a 30-second timeout to handle WebRTC initialization delays.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     #[ignore = "Uses real WebRTC - run manually with --ignored flag"]

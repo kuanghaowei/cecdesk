@@ -66,7 +66,9 @@ impl MockWebRTCEngine {
         connection_id: &str,
     ) -> Option<RTCPeerConnectionState> {
         let connections = self.connections.lock().await;
-        connections.get(connection_id).map(|conn| conn.state.clone())
+        connections
+            .get(connection_id)
+            .map(|conn| conn.state.clone())
     }
 
     /// Close a mock connection
@@ -84,7 +86,7 @@ impl MockWebRTCEngine {
     /// Returns an error if the connection doesn't exist.
     pub async fn establish_connection(&self, connection_id: &str, remote_id: String) -> Result<()> {
         let mut connections = self.connections.lock().await;
-        
+
         let connection_info = connections
             .get_mut(connection_id)
             .ok_or_else(|| anyhow::anyhow!("Connection not found: {}", connection_id))?;
@@ -109,7 +111,7 @@ mod tests {
     #[tokio::test]
     async fn test_single_connection_creation() {
         let engine = MockWebRTCEngine::new();
-        
+
         let config = RTCConfiguration {
             ice_servers: vec![],
             ice_transport_policy: "all".to_string(),
@@ -122,13 +124,16 @@ mod tests {
             .await
             .expect("Failed to create connection");
 
-        assert!(!connection_id.is_empty(), "Connection ID should not be empty");
+        assert!(
+            !connection_id.is_empty(),
+            "Connection ID should not be empty"
+        );
     }
 
     #[tokio::test]
     async fn test_newly_created_connection_has_new_state() {
         let engine = MockWebRTCEngine::new();
-        
+
         let config = RTCConfiguration {
             ice_servers: vec![],
             ice_transport_policy: "all".to_string(),
@@ -152,7 +157,7 @@ mod tests {
     #[tokio::test]
     async fn test_closing_connection_removes_state() {
         let engine = MockWebRTCEngine::new();
-        
+
         let config = RTCConfiguration {
             ice_servers: vec![],
             ice_transport_policy: "all".to_string(),
@@ -171,11 +176,7 @@ mod tests {
             .expect("Failed to close connection");
 
         let state = engine.get_connection_state(&connection_id).await;
-        assert_eq!(
-            state,
-            None,
-            "State should be None after closing connection"
-        );
+        assert_eq!(state, None, "State should be None after closing connection");
     }
 
     #[tokio::test]
@@ -184,8 +185,7 @@ mod tests {
 
         let state = engine.get_connection_state("non-existent-id").await;
         assert_eq!(
-            state,
-            None,
+            state, None,
             "Querying non-existent connection should return None"
         );
     }
@@ -221,7 +221,7 @@ mod property_tests {
 
             rt.block_on(async {
                 let engine = MockWebRTCEngine::new();
-                
+
                 let config = RTCConfiguration {
                     ice_servers: vec![],
                     ice_transport_policy: "all".to_string(),
@@ -276,7 +276,7 @@ mod property_tests {
 
             rt.block_on(async {
                 let engine = MockWebRTCEngine::new();
-                
+
                 let config = RTCConfiguration {
                     ice_servers: vec![],
                     ice_transport_policy: "all".to_string(),
@@ -290,7 +290,7 @@ mod property_tests {
                         .create_peer_connection(config.clone())
                         .await
                         .expect("Failed to create connection");
-                    
+
                     // Verify state is always "New" immediately after creation
                     let state = engine.get_connection_state(&id).await;
                     prop_assert_eq!(
@@ -298,7 +298,7 @@ mod property_tests {
                         Some(RTCPeerConnectionState::New),
                         "Newly created connection should always have 'New' state"
                     );
-                    
+
                     connection_ids.push(id);
                 }
 
@@ -326,7 +326,7 @@ mod property_tests {
 
             rt.block_on(async {
                 let engine = MockWebRTCEngine::new();
-                
+
                 let config = RTCConfiguration {
                     ice_servers: vec![],
                     ice_transport_policy: "all".to_string(),
@@ -349,7 +349,7 @@ mod property_tests {
                         .close_connection(id)
                         .await
                         .expect("Failed to close connection");
-                    
+
                     let state = engine.get_connection_state(id).await;
                     prop_assert_eq!(
                         state,
