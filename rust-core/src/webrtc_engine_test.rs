@@ -151,102 +151,132 @@ mod network_tests {
 mod unit_tests {
     use super::*;
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_webrtc_engine_creation() {
-        let engine = WebRTCEngine::new().await;
-        assert!(
-            engine.is_ok(),
-            "WebRTC engine should be created successfully"
-        );
+        use tokio::time::{timeout, Duration};
+        
+        let result = timeout(Duration::from_secs(10), async {
+            let engine = WebRTCEngine::new().await;
+            assert!(
+                engine.is_ok(),
+                "WebRTC engine should be created successfully"
+            );
+        }).await;
+        
+        assert!(result.is_ok(), "Test timed out after 10 seconds");
     }
 
     /// Test peer connection lifecycle without network calls
     /// Uses empty ICE servers to avoid network timeouts
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_peer_connection_lifecycle() {
-        let engine = WebRTCEngine::new().await.expect("Failed to create engine");
+        use tokio::time::{timeout, Duration};
+        
+        let result = timeout(Duration::from_secs(10), async {
+            let engine = WebRTCEngine::new().await.expect("Failed to create engine");
 
-        // Use empty ICE servers to avoid network calls
-        let config = RTCConfiguration {
-            ice_servers: vec![],
-            ice_transport_policy: "all".to_string(),
-            bundle_policy: None,
-            rtcp_mux_policy: None,
-        };
+            // Use empty ICE servers to avoid network calls
+            let config = RTCConfiguration {
+                ice_servers: vec![],
+                ice_transport_policy: "all".to_string(),
+                bundle_policy: None,
+                rtcp_mux_policy: None,
+            };
 
-        let connection_id = engine
-            .create_peer_connection(config)
-            .await
-            .expect("Failed to create peer connection");
+            let connection_id = engine
+                .create_peer_connection(config)
+                .await
+                .expect("Failed to create peer connection");
 
-        let state = engine.get_connection_state(&connection_id).await;
-        assert_eq!(state, Some(RTCPeerConnectionState::New));
+            let state = engine.get_connection_state(&connection_id).await;
+            assert_eq!(state, Some(RTCPeerConnectionState::New));
 
-        engine
-            .close_connection(&connection_id)
-            .await
-            .expect("Failed to close connection");
+            engine
+                .close_connection(&connection_id)
+                .await
+                .expect("Failed to close connection");
 
-        let state = engine.get_connection_state(&connection_id).await;
-        assert_eq!(state, None);
+            let state = engine.get_connection_state(&connection_id).await;
+            assert_eq!(state, None);
+        }).await;
+        
+        assert!(result.is_ok(), "Test timed out after 10 seconds");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_connection_not_found_error() {
-        let engine = WebRTCEngine::new().await.expect("Failed to create engine");
+        use tokio::time::{timeout, Duration};
+        
+        let result = timeout(Duration::from_secs(10), async {
+            let engine = WebRTCEngine::new().await.expect("Failed to create engine");
 
-        let result = engine
-            .establish_connection("non-existent", "remote123".to_string())
-            .await;
-        assert!(result.is_err(), "Should fail for non-existent connection");
+            let result = engine
+                .establish_connection("non-existent", "remote123".to_string())
+                .await;
+            assert!(result.is_err(), "Should fail for non-existent connection");
 
-        let result = engine.close_connection("non-existent").await;
-        assert!(
-            result.is_ok(),
-            "Closing non-existent connection should not error"
-        );
+            let result = engine.close_connection("non-existent").await;
+            assert!(
+                result.is_ok(),
+                "Closing non-existent connection should not error"
+            );
+        }).await;
+        
+        assert!(result.is_ok(), "Test timed out after 10 seconds");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_empty_ice_servers_config() {
-        let engine = WebRTCEngine::new().await.expect("Failed to create engine");
+        use tokio::time::{timeout, Duration};
+        
+        let result = timeout(Duration::from_secs(10), async {
+            let engine = WebRTCEngine::new().await.expect("Failed to create engine");
 
-        let config = RTCConfiguration {
-            ice_servers: vec![],
-            ice_transport_policy: "all".to_string(),
-            bundle_policy: None,
-            rtcp_mux_policy: None,
-        };
+            let config = RTCConfiguration {
+                ice_servers: vec![],
+                ice_transport_policy: "all".to_string(),
+                bundle_policy: None,
+                rtcp_mux_policy: None,
+            };
 
-        let result = engine.create_peer_connection(config).await;
-        assert!(result.is_ok(), "Should handle empty ICE servers gracefully");
+            let result = engine.create_peer_connection(config).await;
+            assert!(result.is_ok(), "Should handle empty ICE servers gracefully");
+        }).await;
+        
+        assert!(result.is_ok(), "Test timed out after 10 seconds");
     }
 
-    #[tokio::test]
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
     async fn test_multiple_connections() {
-        let engine = WebRTCEngine::new().await.expect("Failed to create engine");
+        use tokio::time::{timeout, Duration};
+        
+        let result = timeout(Duration::from_secs(15), async {
+            let engine = WebRTCEngine::new().await.expect("Failed to create engine");
 
-        let config = RTCConfiguration {
-            ice_servers: vec![],
-            ice_transport_policy: "all".to_string(),
-            bundle_policy: None,
-            rtcp_mux_policy: None,
-        };
+            let config = RTCConfiguration {
+                ice_servers: vec![],
+                ice_transport_policy: "all".to_string(),
+                bundle_policy: None,
+                rtcp_mux_policy: None,
+            };
 
-        // Create multiple connections
-        let id1 = engine.create_peer_connection(config.clone()).await.unwrap();
-        let id2 = engine.create_peer_connection(config.clone()).await.unwrap();
+            // Create multiple connections
+            let id1 = engine.create_peer_connection(config.clone()).await.unwrap();
+            let id2 = engine.create_peer_connection(config.clone()).await.unwrap();
 
-        // Verify both connections exist and have unique IDs
-        assert_ne!(id1, id2, "Connection IDs should be unique");
+            // Verify both connections exist and have unique IDs
+            assert_ne!(id1, id2, "Connection IDs should be unique");
 
-        let state1 = engine.get_connection_state(&id1).await;
-        let state2 = engine.get_connection_state(&id2).await;
-        assert_eq!(state1, Some(RTCPeerConnectionState::New));
-        assert_eq!(state2, Some(RTCPeerConnectionState::New));
+            let state1 = engine.get_connection_state(&id1).await;
+            let state2 = engine.get_connection_state(&id2).await;
+            assert_eq!(state1, Some(RTCPeerConnectionState::New));
+            assert_eq!(state2, Some(RTCPeerConnectionState::New));
 
-        // Cleanup
-        engine.close_connection(&id1).await.unwrap();
-        engine.close_connection(&id2).await.unwrap();
+            // Cleanup
+            engine.close_connection(&id1).await.unwrap();
+            engine.close_connection(&id2).await.unwrap();
+        }).await;
+        
+        assert!(result.is_ok(), "Test timed out after 15 seconds");
     }
 }

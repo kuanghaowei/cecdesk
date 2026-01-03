@@ -580,7 +580,8 @@ class MonitoringService extends StateNotifier<MonitoringState> {
       } else if (!signalingServer.reachable) {
         overallStatus = DiagnosticStatus.critical;
         recommendations.add('无法连接信令服务器，请检查网络设置');
-      } else if (natType == NatType.symmetric || natType == NatType.symmetricUdpFirewall) { // ignore: dead_code
+      // ignore: dead_code
+      } else if (natType == NatType.symmetric || natType == NatType.symmetricUdpFirewall) {
         if (!turnServers.any((s) => s.reachable)) {
           overallStatus = DiagnosticStatus.warning;
           recommendations.add('检测到对称NAT，建议确保TURN服务器可用');
