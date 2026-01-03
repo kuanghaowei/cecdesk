@@ -1,16 +1,15 @@
 //! Property-based tests for Signaling Service
-//! 
+//!
 //! Feature: cec-remote
 //! Property 5: 信令交换性能 - Signaling exchange should complete within 5 seconds
 //! Property 6: 设备 ID 唯一性 - Device IDs should be unique
 //! Validates: Requirements 4.5, 5.1
 
+use crate::signaling::{
+    generate_device_id, DeviceCapabilities, DeviceInfo, SignalingMessage, SignalingMetrics,
+};
 use proptest::prelude::*;
 use std::collections::HashSet;
-use crate::signaling::{
-    generate_device_id, SignalingMessage, DeviceInfo, DeviceCapabilities,
-    SignalingMetrics,
-};
 
 /// Strategy for generating random device names
 fn device_name_strategy() -> impl Strategy<Value = String> {
@@ -39,13 +38,14 @@ fn version_strategy() -> impl Strategy<Value = String> {
 
 /// Strategy for generating random device capabilities
 fn capabilities_strategy() -> impl Strategy<Value = DeviceCapabilities> {
-    (any::<bool>(), any::<bool>(), any::<bool>(), any::<bool>())
-        .prop_map(|(screen, audio, file, input)| DeviceCapabilities {
+    (any::<bool>(), any::<bool>(), any::<bool>(), any::<bool>()).prop_map(
+        |(screen, audio, file, input)| DeviceCapabilities {
             screen_capture: screen,
             audio_capture: audio,
             file_transfer: file,
             input_control: input,
-        })
+        },
+    )
 }
 
 /// Strategy for generating random device info
@@ -72,11 +72,15 @@ fn sdp_strategy() -> impl Strategy<Value = String> {
 
 /// Strategy for generating random ICE candidate strings
 fn ice_candidate_strategy() -> impl Strategy<Value = String> {
-    (1u32..10, 1u32..65535)
-        .prop_map(|(component, port)| {
-            format!("candidate:{} {} UDP {} 192.168.1.1 {} typ host", 
-                    component, component, port * 1000, port)
-        })
+    (1u32..10, 1u32..65535).prop_map(|(component, port)| {
+        format!(
+            "candidate:{} {} UDP {} 192.168.1.1 {} typ host",
+            component,
+            component,
+            port * 1000,
+            port
+        )
+    })
 }
 
 proptest! {
@@ -88,14 +92,14 @@ proptest! {
     #[test]
     fn prop_device_id_uniqueness(count in 10usize..100) {
         let mut ids = HashSet::new();
-        
+
         for _ in 0..count {
             let id = generate_device_id();
             // Each generated ID should be unique
-            prop_assert!(ids.insert(id.clone()), 
+            prop_assert!(ids.insert(id.clone()),
                 "Generated duplicate device ID: {}", id);
         }
-        
+
         // All IDs should be present
         prop_assert_eq!(ids.len(), count);
     }
@@ -106,7 +110,7 @@ proptest! {
     #[test]
     fn prop_device_id_is_valid_uuid(_seed in any::<u64>()) {
         let id = generate_device_id();
-        
+
         // Should be a valid UUID format (8-4-4-4-12 hex digits)
         let parts: Vec<&str> = id.split('-').collect();
         prop_assert_eq!(parts.len(), 5, "UUID should have 5 parts separated by dashes");
@@ -115,7 +119,7 @@ proptest! {
         prop_assert_eq!(parts[2].len(), 4, "Third part should be 4 chars");
         prop_assert_eq!(parts[3].len(), 4, "Fourth part should be 4 chars");
         prop_assert_eq!(parts[4].len(), 12, "Fifth part should be 12 chars");
-        
+
         // All parts should be valid hex
         for part in parts {
             prop_assert!(part.chars().all(|c| c.is_ascii_hexdigit()),
@@ -138,14 +142,14 @@ proptest! {
             to: to.clone(),
             sdp: sdp.clone(),
         };
-        
+
         // Serialize
         let json = serde_json::to_string(&msg).expect("Serialization should succeed");
-        
+
         // Deserialize
         let parsed: SignalingMessage = serde_json::from_str(&json)
             .expect("Deserialization should succeed");
-        
+
         // Verify round-trip
         match parsed {
             SignalingMessage::Offer { from: f, to: t, sdp: s } => {
@@ -171,11 +175,11 @@ proptest! {
             to: to.clone(),
             sdp: sdp.clone(),
         };
-        
+
         let json = serde_json::to_string(&msg).expect("Serialization should succeed");
         let parsed: SignalingMessage = serde_json::from_str(&json)
             .expect("Deserialization should succeed");
-        
+
         match parsed {
             SignalingMessage::Answer { from: f, to: t, sdp: s } => {
                 prop_assert_eq!(f, from);
@@ -200,11 +204,11 @@ proptest! {
             to: to.clone(),
             candidate: candidate.clone(),
         };
-        
+
         let json = serde_json::to_string(&msg).expect("Serialization should succeed");
         let parsed: SignalingMessage = serde_json::from_str(&json)
             .expect("Deserialization should succeed");
-        
+
         match parsed {
             SignalingMessage::IceCandidate { from: f, to: t, candidate: c } => {
                 prop_assert_eq!(f, from);
@@ -223,7 +227,7 @@ proptest! {
         let json = serde_json::to_string(&device_info).expect("Serialization should succeed");
         let parsed: DeviceInfo = serde_json::from_str(&json)
             .expect("Deserialization should succeed");
-        
+
         prop_assert_eq!(parsed.device_id, device_info.device_id);
         prop_assert_eq!(parsed.device_name, device_info.device_name);
         prop_assert_eq!(parsed.platform, device_info.platform);
@@ -240,11 +244,11 @@ proptest! {
     #[test]
     fn prop_register_message_roundtrip(device_info in device_info_strategy()) {
         let msg = SignalingMessage::Register(device_info.clone());
-        
+
         let json = serde_json::to_string(&msg).expect("Serialization should succeed");
         let parsed: SignalingMessage = serde_json::from_str(&json)
             .expect("Deserialization should succeed");
-        
+
         match parsed {
             SignalingMessage::Register(info) => {
                 prop_assert_eq!(info.device_id, device_info.device_id);
@@ -266,11 +270,11 @@ proptest! {
             from: from.clone(),
             device_info: device_info.clone(),
         };
-        
+
         let json = serde_json::to_string(&msg).expect("Serialization should succeed");
         let parsed: SignalingMessage = serde_json::from_str(&json)
             .expect("Deserialization should succeed");
-        
+
         match parsed {
             SignalingMessage::ConnectionRequest { from: f, device_info: info } => {
                 prop_assert_eq!(f, from);
@@ -309,7 +313,7 @@ mod unit_tests {
             code: 404,
             message: "Device not found".to_string(),
         };
-        
+
         let json = serde_json::to_string(&msg).unwrap();
         assert!(json.contains("404"));
         assert!(json.contains("Device not found"));
@@ -320,10 +324,10 @@ mod unit_tests {
         let msg = SignalingMessage::Heartbeat {
             device_id: "test-device-123".to_string(),
         };
-        
+
         let json = serde_json::to_string(&msg).unwrap();
         let parsed: SignalingMessage = serde_json::from_str(&json).unwrap();
-        
+
         match parsed {
             SignalingMessage::Heartbeat { device_id } => {
                 assert_eq!(device_id, "test-device-123");

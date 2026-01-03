@@ -18,12 +18,31 @@ pub struct KeyModifiers {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InputEvent {
-    MouseMove { x: i32, y: i32 },
-    MouseClick { button: MouseButton, x: i32, y: i32 },
-    MouseWheel { delta_x: i32, delta_y: i32 },
-    KeyDown { key: String, modifiers: KeyModifiers },
-    KeyUp { key: String, modifiers: KeyModifiers },
-    KeyPress { key: String, modifiers: KeyModifiers },
+    MouseMove {
+        x: i32,
+        y: i32,
+    },
+    MouseClick {
+        button: MouseButton,
+        x: i32,
+        y: i32,
+    },
+    MouseWheel {
+        delta_x: i32,
+        delta_y: i32,
+    },
+    KeyDown {
+        key: String,
+        modifiers: KeyModifiers,
+    },
+    KeyUp {
+        key: String,
+        modifiers: KeyModifiers,
+    },
+    KeyPress {
+        key: String,
+        modifiers: KeyModifiers,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

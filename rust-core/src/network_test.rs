@@ -5,10 +5,10 @@
 //! Property 12: 网络质量警告 - Network quality warning
 //! Validates: Requirements 3.3, 11.6
 
-use proptest::prelude::*;
 use crate::network::{
-    NetworkStats, NetworkManager, NetworkQuality, ConnectionType, NetworkProtocol,
+    ConnectionType, NetworkManager, NetworkProtocol, NetworkQuality, NetworkStats,
 };
+use proptest::prelude::*;
 
 prop_compose! {
     fn arb_network_stats()(
@@ -56,21 +56,35 @@ mod unit_tests {
 
     #[tokio::test]
     async fn test_quality_boundary_conditions() {
-        let at_excellent = NetworkStats { 
-            rtt: 49, packet_loss: 0.99, jitter: 0, bandwidth: 1000000,
+        let at_excellent = NetworkStats {
+            rtt: 49,
+            packet_loss: 0.99,
+            jitter: 0,
+            bandwidth: 1000000,
             connection_type: ConnectionType::Direct,
-            local_address: None, remote_address: None,
+            local_address: None,
+            remote_address: None,
             protocol: NetworkProtocol::IPv4,
         };
-        assert_eq!(NetworkManager::calculate_quality(&at_excellent), NetworkQuality::Excellent);
-        
-        let at_poor = NetworkStats { 
-            rtt: 200, packet_loss: 5.0, jitter: 0, bandwidth: 1000000,
+        assert_eq!(
+            NetworkManager::calculate_quality(&at_excellent),
+            NetworkQuality::Excellent
+        );
+
+        let at_poor = NetworkStats {
+            rtt: 200,
+            packet_loss: 5.0,
+            jitter: 0,
+            bandwidth: 1000000,
             connection_type: ConnectionType::Direct,
-            local_address: None, remote_address: None,
+            local_address: None,
+            remote_address: None,
             protocol: NetworkProtocol::IPv4,
         };
-        assert_eq!(NetworkManager::calculate_quality(&at_poor), NetworkQuality::Poor);
+        assert_eq!(
+            NetworkManager::calculate_quality(&at_poor),
+            NetworkQuality::Poor
+        );
     }
 
     #[tokio::test]

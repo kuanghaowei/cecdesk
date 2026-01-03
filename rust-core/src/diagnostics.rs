@@ -119,7 +119,8 @@ impl NetworkDiagnostics {
 
         if !self.signaling_server.reachable {
             self.overall_status = DiagnosticStatus::Critical;
-            self.recommendations.push("无法连接信令服务器，请检查网络设置".to_string());
+            self.recommendations
+                .push("无法连接信令服务器，请检查网络设置".to_string());
             return;
         }
 
@@ -128,7 +129,8 @@ impl NetworkDiagnostics {
 
         if !stun_reachable && !turn_reachable {
             self.overall_status = DiagnosticStatus::Critical;
-            self.recommendations.push("无法连接STUN/TURN服务器，可能无法建立P2P连接".to_string());
+            self.recommendations
+                .push("无法连接STUN/TURN服务器，可能无法建立P2P连接".to_string());
             return;
         }
 
@@ -136,15 +138,18 @@ impl NetworkDiagnostics {
             NatType::Symmetric | NatType::SymmetricUdpFirewall => {
                 if !turn_reachable {
                     self.overall_status = DiagnosticStatus::Warning;
-                    self.recommendations.push("检测到对称NAT，建议确保TURN服务器可用".to_string());
+                    self.recommendations
+                        .push("检测到对称NAT，建议确保TURN服务器可用".to_string());
                 } else {
                     self.overall_status = DiagnosticStatus::Good;
-                    self.recommendations.push("检测到对称NAT，将使用TURN中继".to_string());
+                    self.recommendations
+                        .push("检测到对称NAT，将使用TURN中继".to_string());
                 }
             }
             NatType::Blocked => {
                 self.overall_status = DiagnosticStatus::Critical;
-                self.recommendations.push("UDP被阻止，请检查防火墙设置".to_string());
+                self.recommendations
+                    .push("UDP被阻止，请检查防火墙设置".to_string());
             }
             _ => {
                 self.overall_status = DiagnosticStatus::Good;
@@ -154,7 +159,10 @@ impl NetworkDiagnostics {
         // 检查延迟
         if let Some(latency) = self.signaling_server.latency_ms {
             if latency > 200 {
-                self.recommendations.push(format!("信令服务器延迟较高 ({}ms)，可能影响连接建立速度", latency));
+                self.recommendations.push(format!(
+                    "信令服务器延迟较高 ({}ms)，可能影响连接建立速度",
+                    latency
+                ));
             }
         }
     }
@@ -243,7 +251,12 @@ impl DiagnosticsManager {
     }
 
     /// 配置服务器URL
-    pub fn configure(&mut self, signaling_url: &str, stun_urls: Vec<String>, turn_urls: Vec<String>) {
+    pub fn configure(
+        &mut self,
+        signaling_url: &str,
+        stun_urls: Vec<String>,
+        turn_urls: Vec<String>,
+    ) {
         self.signaling_url = signaling_url.to_string();
         self.stun_urls = stun_urls;
         self.turn_urls = turn_urls;
@@ -264,7 +277,8 @@ impl DiagnosticsManager {
             diagnostics.ipv6_available = diagnostics.local_ipv6.is_some();
 
             // 检查信令服务器
-            diagnostics.signaling_server = self.check_server("Signaling", &self.signaling_url).await;
+            diagnostics.signaling_server =
+                self.check_server("Signaling", &self.signaling_url).await;
 
             // 检查STUN服务器
             for url in &self.stun_urls {
@@ -317,7 +331,7 @@ impl DiagnosticsManager {
     /// 检查服务器
     async fn check_server(&self, name: &str, url: &str) -> ServerStatus {
         let mut status = ServerStatus::new(name, url);
-        
+
         if url.is_empty() {
             return status.failure("URL未配置");
         }
@@ -365,9 +379,8 @@ mod tests {
 
     #[test]
     fn test_server_status() {
-        let status = ServerStatus::new("Test", "http://test.com")
-            .success(50);
-        
+        let status = ServerStatus::new("Test", "http://test.com").success(50);
+
         assert!(status.reachable);
         assert_eq!(status.latency_ms, Some(50));
     }
@@ -377,11 +390,13 @@ mod tests {
         let mut diagnostics = NetworkDiagnostics::new();
         diagnostics.internet_connected = true;
         diagnostics.signaling_server = ServerStatus::new("Signaling", "ws://test.com").success(30);
-        diagnostics.stun_servers.push(ServerStatus::new("STUN", "stun:test.com").success(20));
+        diagnostics
+            .stun_servers
+            .push(ServerStatus::new("STUN", "stun:test.com").success(20));
         diagnostics.nat_type = NatType::FullCone;
-        
+
         diagnostics.calculate_overall_status();
-        
+
         assert_eq!(diagnostics.overall_status, DiagnosticStatus::Good);
     }
 

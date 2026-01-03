@@ -8,6 +8,7 @@ use aes_gcm::{
     Aes256Gcm, Nonce,
 };
 use anyhow::{Context, Result};
+use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::RngCore;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -16,7 +17,6 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 use x25519_dalek::{EphemeralSecret, PublicKey};
-use ed25519_dalek::{SigningKey, VerifyingKey, Signature, Signer, Verifier};
 
 /// Security configuration for the system
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,7 +47,6 @@ impl Default for SecurityConfig {
         }
     }
 }
-
 
 /// Device certificate for authentication
 /// Requirement 10.4: Verify device certificates to prevent MITM attacks
@@ -244,7 +243,6 @@ impl Default for DtlsSrtpConfig {
     }
 }
 
-
 /// TLS configuration for signaling encryption
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TlsConfig {
@@ -305,7 +303,6 @@ pub enum SecurityEventType {
     SessionEstablished,
     SessionTerminated,
 }
-
 
 /// Security Manager - handles all encryption and security operations
 pub struct SecurityManager {
@@ -383,8 +380,12 @@ impl SecurityManager {
     pub fn configure(&mut self, config: SecurityConfig) {
         self.config = config;
         tracing::info!("Security configuration updated");
-        self.log_event(SecurityEventType::EncryptionEnabled, None, None, 
-            "Security configuration updated".to_string());
+        self.log_event(
+            SecurityEventType::EncryptionEnabled,
+            None,
+            None,
+            "Security configuration updated".to_string(),
+        );
     }
 
     /// Get current security configuration
@@ -402,31 +403,31 @@ impl SecurityManager {
         &self.tls_config
     }
 
-
     /// Generate a device certificate for authentication
     /// Requirement 10.4: Verify device certificates to prevent MITM attacks
-    pub async fn generate_device_certificate(&mut self, device_id: String) -> Result<DeviceCertificate> {
+    pub async fn generate_device_certificate(
+        &mut self,
+        device_id: String,
+    ) -> Result<DeviceCertificate> {
         // Generate X25519 key pair for key exchange
         let secret = EphemeralSecret::random_from_rng(OsRng);
         let public = PublicKey::from(&secret);
-        
+
         // Generate Ed25519 signing key pair for certificate signatures
         let mut signing_key_bytes = [0u8; 32];
         OsRng.fill_bytes(&mut signing_key_bytes);
         let signing_key = SigningKey::from_bytes(&signing_key_bytes);
         let verifying_key = signing_key.verifying_key();
-        
+
         // Generate certificate fingerprint
         let mut hasher = Sha256::new();
         hasher.update(public.as_bytes());
         hasher.update(verifying_key.as_bytes());
         let fingerprint = hex::encode(hasher.finalize());
-        
+
         let now = chrono::Utc::now();
-        let valid_until = now
-            .checked_add_signed(chrono::Duration::days(365))
-            .unwrap();
-        
+        let valid_until = now.checked_add_signed(chrono::Duration::days(365)).unwrap();
+
         // Create certificate data for signing
         let cert_data = format!(
             "{}:{}:{}:{}",
@@ -435,10 +436,10 @@ impl SecurityManager {
             now.to_rfc3339(),
             valid_until.to_rfc3339()
         );
-        
+
         // Sign the certificate
         let signature = signing_key.sign(cert_data.as_bytes());
-        
+
         let certificate = DeviceCertificate {
             device_id: device_id.clone(),
             certificate: public.as_bytes().to_vec(),
@@ -455,27 +456,33 @@ impl SecurityManager {
         };
 
         self.device_certificate = Some(certificate.clone());
-        
+
         // Add to trusted certificates
-        self.trusted_certificates.write().await.insert(fingerprint.clone());
-        
+        self.trusted_certificates
+            .write()
+            .await
+            .insert(fingerprint.clone());
+
         self.log_event(
             SecurityEventType::CertificateValidation,
             None,
             Some(device_id.clone()),
             format!("Generated device certificate for: {}", device_id),
         );
-        
+
         tracing::info!("Generated device certificate for: {}", device_id);
         Ok(certificate)
     }
 
     /// Validate a device certificate with comprehensive checks
     /// Requirement 10.4: Verify device certificates to prevent MITM attacks
-    pub async fn validate_device_certificate(&self, certificate: &DeviceCertificate) -> Result<CertificateValidationResult> {
+    pub async fn validate_device_certificate(
+        &self,
+        certificate: &DeviceCertificate,
+    ) -> Result<CertificateValidationResult> {
         let mut validation_errors = Vec::new();
         let now = chrono::Utc::now();
-        
+
         if !self.config.certificate_validation {
             return Ok(CertificateValidationResult {
                 is_valid: true,
@@ -489,27 +496,35 @@ impl SecurityManager {
         if certificate.revoked {
             validation_errors.push(CertificateValidationError::Revoked);
         }
-        
+
         // Check revocation list
-        if self.revoked_certificates.read().await.contains(&certificate.fingerprint) {
+        if self
+            .revoked_certificates
+            .read()
+            .await
+            .contains(&certificate.fingerprint)
+        {
             validation_errors.push(CertificateValidationError::Revoked);
         }
 
         // Check certificate expiration
         let valid_until = chrono::DateTime::parse_from_rfc3339(&certificate.valid_until)
             .context("Invalid certificate expiration date")?;
-        
+
         if valid_until < now {
             tracing::warn!("Certificate expired for device: {}", certificate.device_id);
             validation_errors.push(CertificateValidationError::Expired);
         }
-        
+
         // Check not-before date
         let valid_from = chrono::DateTime::parse_from_rfc3339(&certificate.valid_from)
             .context("Invalid certificate start date")?;
-        
+
         if valid_from > now {
-            tracing::warn!("Certificate not yet valid for device: {}", certificate.device_id);
+            tracing::warn!(
+                "Certificate not yet valid for device: {}",
+                certificate.device_id
+            );
             validation_errors.push(CertificateValidationError::NotYetValid);
         }
 
@@ -518,38 +533,56 @@ impl SecurityManager {
         hasher.update(&certificate.public_key);
         hasher.update(&certificate.verifying_key);
         let computed_fingerprint = hex::encode(hasher.finalize());
-        
+
         if computed_fingerprint != certificate.fingerprint {
-            tracing::warn!("Certificate fingerprint mismatch for device: {}", certificate.device_id);
+            tracing::warn!(
+                "Certificate fingerprint mismatch for device: {}",
+                certificate.device_id
+            );
             validation_errors.push(CertificateValidationError::FingerprintMismatch);
         }
-        
+
         // Verify signature
         if !self.verify_certificate_signature(certificate)? {
-            tracing::warn!("Certificate signature invalid for device: {}", certificate.device_id);
+            tracing::warn!(
+                "Certificate signature invalid for device: {}",
+                certificate.device_id
+            );
             validation_errors.push(CertificateValidationError::SignatureInvalid);
         }
-        
+
         // Check issuer trust chain (if not self-signed)
         if let Some(ref issuer_fingerprint) = certificate.issuer_fingerprint {
-            if !self.trusted_certificates.read().await.contains(issuer_fingerprint) {
-                tracing::warn!("Certificate issuer not trusted for device: {}", certificate.device_id);
+            if !self
+                .trusted_certificates
+                .read()
+                .await
+                .contains(issuer_fingerprint)
+            {
+                tracing::warn!(
+                    "Certificate issuer not trusted for device: {}",
+                    certificate.device_id
+                );
                 validation_errors.push(CertificateValidationError::IssuerNotTrusted);
             }
         }
 
         let is_valid = validation_errors.is_empty();
-        
+
         if is_valid {
-            tracing::debug!("Certificate validated for device: {}", certificate.device_id);
+            tracing::debug!(
+                "Certificate validated for device: {}",
+                certificate.device_id
+            );
         } else {
             // Detect potential MITM attack
-            if validation_errors.contains(&CertificateValidationError::SignatureInvalid) ||
-               validation_errors.contains(&CertificateValidationError::FingerprintMismatch) {
+            if validation_errors.contains(&CertificateValidationError::SignatureInvalid)
+                || validation_errors.contains(&CertificateValidationError::FingerprintMismatch)
+            {
                 let _ = self.detect_security_threat(SecurityThreat::ManInTheMiddle);
             }
         }
-        
+
         Ok(CertificateValidationResult {
             is_valid,
             device_id: certificate.device_id.clone(),
@@ -557,22 +590,28 @@ impl SecurityManager {
             validated_at: now.to_rfc3339(),
         })
     }
-    
+
     /// Verify certificate signature
     fn verify_certificate_signature(&self, certificate: &DeviceCertificate) -> Result<bool> {
         if certificate.verifying_key.len() != 32 || certificate.signature.len() != 64 {
             return Ok(false);
         }
-        
-        let verifying_key_bytes: [u8; 32] = certificate.verifying_key.clone().try_into()
+
+        let verifying_key_bytes: [u8; 32] = certificate
+            .verifying_key
+            .clone()
+            .try_into()
             .map_err(|_| anyhow::anyhow!("Invalid verifying key length"))?;
         let verifying_key = VerifyingKey::from_bytes(&verifying_key_bytes)
             .map_err(|e| anyhow::anyhow!("Invalid verifying key: {}", e))?;
-        
-        let signature_bytes: [u8; 64] = certificate.signature.clone().try_into()
+
+        let signature_bytes: [u8; 64] = certificate
+            .signature
+            .clone()
+            .try_into()
             .map_err(|_| anyhow::anyhow!("Invalid signature length"))?;
         let signature = Signature::from_bytes(&signature_bytes);
-        
+
         // Reconstruct certificate data for verification
         let cert_data = format!(
             "{}:{}:{}:{}",
@@ -581,39 +620,50 @@ impl SecurityManager {
             certificate.valid_from,
             certificate.valid_until
         );
-        
-        Ok(verifying_key.verify(cert_data.as_bytes(), &signature).is_ok())
+
+        Ok(verifying_key
+            .verify(cert_data.as_bytes(), &signature)
+            .is_ok())
     }
-    
+
     /// Add a certificate to the trusted list
     pub async fn trust_certificate(&self, fingerprint: &str) {
-        self.trusted_certificates.write().await.insert(fingerprint.to_string());
+        self.trusted_certificates
+            .write()
+            .await
+            .insert(fingerprint.to_string());
         tracing::info!("Added certificate to trusted list: {}", fingerprint);
     }
-    
+
     /// Revoke a certificate
     pub async fn revoke_certificate(&self, fingerprint: &str) {
-        self.revoked_certificates.write().await.insert(fingerprint.to_string());
+        self.revoked_certificates
+            .write()
+            .await
+            .insert(fingerprint.to_string());
         self.trusted_certificates.write().await.remove(fingerprint);
-        
+
         self.log_event(
             SecurityEventType::CertificateValidation,
             None,
             None,
             format!("Certificate revoked: {}", fingerprint),
         );
-        
+
         tracing::warn!("Certificate revoked: {}", fingerprint);
     }
-    
+
     /// Check if a certificate is trusted
     pub async fn is_certificate_trusted(&self, fingerprint: &str) -> bool {
-        self.trusted_certificates.read().await.contains(fingerprint) &&
-        !self.revoked_certificates.read().await.contains(fingerprint)
+        self.trusted_certificates.read().await.contains(fingerprint)
+            && !self.revoked_certificates.read().await.contains(fingerprint)
     }
 
     /// Legacy validation method for backward compatibility
-    pub fn validate_device_certificate_sync(&self, certificate: &DeviceCertificate) -> Result<bool> {
+    pub fn validate_device_certificate_sync(
+        &self,
+        certificate: &DeviceCertificate,
+    ) -> Result<bool> {
         if !self.config.certificate_validation {
             return Ok(true);
         }
@@ -622,7 +672,7 @@ impl SecurityManager {
         let valid_until = chrono::DateTime::parse_from_rfc3339(&certificate.valid_until)
             .context("Invalid certificate expiration date")?;
         let now = chrono::Utc::now();
-        
+
         if valid_until < now {
             tracing::warn!("Certificate expired for device: {}", certificate.device_id);
             return Ok(false);
@@ -635,13 +685,19 @@ impl SecurityManager {
             hasher.update(&certificate.verifying_key);
         }
         let computed_fingerprint = hex::encode(hasher.finalize());
-        
+
         if computed_fingerprint != certificate.fingerprint {
-            tracing::warn!("Certificate fingerprint mismatch for device: {}", certificate.device_id);
+            tracing::warn!(
+                "Certificate fingerprint mismatch for device: {}",
+                certificate.device_id
+            );
             return Ok(false);
         }
 
-        tracing::debug!("Certificate validated for device: {}", certificate.device_id);
+        tracing::debug!(
+            "Certificate validated for device: {}",
+            certificate.device_id
+        );
         Ok(true)
     }
 
@@ -650,12 +706,11 @@ impl SecurityManager {
         self.device_certificate.as_ref()
     }
 
-
     /// Generate a session key for encryption
     pub async fn generate_session_key(&self, session_id: &str) -> Result<SessionKey> {
         let mut key = vec![0u8; 32]; // 256-bit key
         OsRng.fill_bytes(&mut key);
-        
+
         let now = Instant::now();
         let session_key = SessionKey {
             key,
@@ -666,22 +721,25 @@ impl SecurityManager {
             max_age_secs: self.key_rotation_config.rotation_interval_secs,
             auto_rotate: self.key_rotation_config.auto_rotate,
         };
-        
-        self.session_keys.write().await.insert(session_id.to_string(), session_key.clone());
-        
+
+        self.session_keys
+            .write()
+            .await
+            .insert(session_id.to_string(), session_key.clone());
+
         // Initialize replay detection for this session
-        self.replay_detection.write().await.insert(
-            session_id.to_string(),
-            ReplayDetectionState::default()
-        );
-        
+        self.replay_detection
+            .write()
+            .await
+            .insert(session_id.to_string(), ReplayDetectionState::default());
+
         self.log_event(
             SecurityEventType::SessionEstablished,
             Some(session_id.to_string()),
             None,
             "Session key generated".to_string(),
         );
-        
+
         tracing::info!("Generated session key for session: {}", session_id);
         Ok(session_key)
     }
@@ -690,37 +748,45 @@ impl SecurityManager {
     /// Requirement 10.5: Periodically rotate session keys
     pub async fn rotate_session_key(&self, session_id: &str) -> Result<SessionKey> {
         let mut keys = self.session_keys.write().await;
-        
+
         if let Some(existing_key) = keys.get_mut(session_id) {
             // Store old key for grace period
             let old_key = existing_key.clone();
-            let grace_expiration = Instant::now() + Duration::from_secs(self.key_rotation_config.grace_period_secs);
-            
+            let grace_expiration =
+                Instant::now() + Duration::from_secs(self.key_rotation_config.grace_period_secs);
+
             {
                 let mut old_keys = self.old_session_keys.write().await;
-                old_keys.entry(session_id.to_string())
+                old_keys
+                    .entry(session_id.to_string())
                     .or_insert_with(Vec::new)
                     .push((old_key, grace_expiration));
             }
-            
+
             // Generate new key
             let mut new_key = vec![0u8; 32];
             OsRng.fill_bytes(&mut new_key);
-            
+
             existing_key.key = new_key;
             existing_key.last_rotated_at = Instant::now();
             existing_key.rotation_count += 1;
-            
+
             self.log_event(
                 SecurityEventType::KeyRotation,
                 Some(session_id.to_string()),
                 None,
-                format!("Session key rotated (count: {})", existing_key.rotation_count),
+                format!(
+                    "Session key rotated (count: {})",
+                    existing_key.rotation_count
+                ),
             );
-            
-            tracing::info!("Rotated session key for session: {} (rotation #{})", 
-                session_id, existing_key.rotation_count);
-            
+
+            tracing::info!(
+                "Rotated session key for session: {} (rotation #{})",
+                session_id,
+                existing_key.rotation_count
+            );
+
             Ok(existing_key.clone())
         } else {
             Err(anyhow::anyhow!("Session not found: {}", session_id))
@@ -738,13 +804,13 @@ impl SecurityManager {
             false
         }
     }
-    
+
     /// Automatically rotate keys that have exceeded their maximum age
     /// Requirement 10.5: Periodically rotate session keys
     pub async fn auto_rotate_expired_keys(&self) -> Vec<String> {
         let mut rotated_sessions = Vec::new();
         let session_ids: Vec<String> = self.session_keys.read().await.keys().cloned().collect();
-        
+
         for session_id in session_ids {
             if self.needs_key_rotation(&session_id).await {
                 if self.rotate_session_key(&session_id).await.is_ok() {
@@ -752,32 +818,32 @@ impl SecurityManager {
                 }
             }
         }
-        
+
         // Clean up expired old keys
         self.cleanup_expired_old_keys().await;
-        
+
         rotated_sessions
     }
-    
+
     /// Clean up old keys that have exceeded their grace period
     async fn cleanup_expired_old_keys(&self) {
         let mut old_keys = self.old_session_keys.write().await;
         let now = Instant::now();
-        
+
         for (_, keys) in old_keys.iter_mut() {
             keys.retain(|(_, expiration)| *expiration > now);
         }
-        
+
         // Remove empty entries
         old_keys.retain(|_, keys| !keys.is_empty());
     }
-    
+
     /// Configure key rotation settings
     pub fn configure_key_rotation(&mut self, config: KeyRotationConfig) {
         self.key_rotation_config = config;
         tracing::info!("Key rotation configuration updated");
     }
-    
+
     /// Get key rotation configuration
     pub fn get_key_rotation_config(&self) -> &KeyRotationConfig {
         &self.key_rotation_config
@@ -793,7 +859,7 @@ impl SecurityManager {
         self.session_keys.write().await.remove(session_id);
         self.replay_detection.write().await.remove(session_id);
         self.old_session_keys.write().await.remove(session_id);
-        
+
         self.log_event(
             SecurityEventType::SessionTerminated,
             Some(session_id.to_string()),
@@ -802,10 +868,13 @@ impl SecurityManager {
         );
     }
 
-
     /// Encrypt media stream data using DTLS-SRTP
     /// Requirement 10.1: Use DTLS-SRTP to encrypt all WebRTC media streams
-    pub async fn encrypt_media_stream(&self, session_id: &str, data: &[u8]) -> Result<EncryptedData> {
+    pub async fn encrypt_media_stream(
+        &self,
+        session_id: &str,
+        data: &[u8],
+    ) -> Result<EncryptedData> {
         if !self.config.enable_dtls_srtp {
             // Return unencrypted data wrapped in EncryptedData structure
             return Ok(EncryptedData {
@@ -817,24 +886,36 @@ impl SecurityManager {
             });
         }
 
-        let key = self.session_keys.read().await
+        let key = self
+            .session_keys
+            .read()
+            .await
             .get(session_id)
             .ok_or_else(|| anyhow::anyhow!("Session key not found for: {}", session_id))?
-            .key.clone();
+            .key
+            .clone();
 
         self.encrypt_with_aes_gcm(&key, data, session_id)
     }
 
     /// Decrypt media stream data
-    pub async fn decrypt_media_stream(&self, session_id: &str, encrypted: &EncryptedData) -> Result<Vec<u8>> {
+    pub async fn decrypt_media_stream(
+        &self,
+        session_id: &str,
+        encrypted: &EncryptedData,
+    ) -> Result<Vec<u8>> {
         if !self.config.enable_dtls_srtp {
             return Ok(encrypted.ciphertext.clone());
         }
 
-        let key = self.session_keys.read().await
+        let key = self
+            .session_keys
+            .read()
+            .await
             .get(session_id)
             .ok_or_else(|| anyhow::anyhow!("Session key not found for: {}", session_id))?
-            .key.clone();
+            .key
+            .clone();
 
         self.decrypt_with_aes_gcm(&key, encrypted)
     }
@@ -852,32 +933,47 @@ impl SecurityManager {
             });
         }
 
-        let key = self.session_keys.read().await
+        let key = self
+            .session_keys
+            .read()
+            .await
             .get(session_id)
             .ok_or_else(|| anyhow::anyhow!("Session key not found for: {}", session_id))?
-            .key.clone();
+            .key
+            .clone();
 
         self.encrypt_with_aes_gcm(&key, data, session_id)
     }
 
     /// Decrypt file data
-    pub async fn decrypt_file_data(&self, session_id: &str, encrypted: &EncryptedData) -> Result<Vec<u8>> {
+    pub async fn decrypt_file_data(
+        &self,
+        session_id: &str,
+        encrypted: &EncryptedData,
+    ) -> Result<Vec<u8>> {
         if !self.config.enable_file_encryption {
             return Ok(encrypted.ciphertext.clone());
         }
 
-        let key = self.session_keys.read().await
+        let key = self
+            .session_keys
+            .read()
+            .await
             .get(session_id)
             .ok_or_else(|| anyhow::anyhow!("Session key not found for: {}", session_id))?
-            .key.clone();
+            .key
+            .clone();
 
         self.decrypt_with_aes_gcm(&key, encrypted)
     }
 
-
     /// Encrypt signaling data using TLS 1.3
     /// Requirement 10.2: Use TLS 1.3 for signaling encryption
-    pub async fn encrypt_signaling_data(&self, session_id: &str, data: &[u8]) -> Result<EncryptedData> {
+    pub async fn encrypt_signaling_data(
+        &self,
+        session_id: &str,
+        data: &[u8],
+    ) -> Result<EncryptedData> {
         if !self.config.enable_tls_signaling {
             return Ok(EncryptedData {
                 ciphertext: data.to_vec(),
@@ -888,24 +984,36 @@ impl SecurityManager {
             });
         }
 
-        let key = self.session_keys.read().await
+        let key = self
+            .session_keys
+            .read()
+            .await
             .get(session_id)
             .ok_or_else(|| anyhow::anyhow!("Session key not found for: {}", session_id))?
-            .key.clone();
+            .key
+            .clone();
 
         self.encrypt_with_aes_gcm(&key, data, session_id)
     }
 
     /// Decrypt signaling data
-    pub async fn decrypt_signaling_data(&self, session_id: &str, encrypted: &EncryptedData) -> Result<Vec<u8>> {
+    pub async fn decrypt_signaling_data(
+        &self,
+        session_id: &str,
+        encrypted: &EncryptedData,
+    ) -> Result<Vec<u8>> {
         if !self.config.enable_tls_signaling {
             return Ok(encrypted.ciphertext.clone());
         }
 
-        let key = self.session_keys.read().await
+        let key = self
+            .session_keys
+            .read()
+            .await
             .get(session_id)
             .ok_or_else(|| anyhow::anyhow!("Session key not found for: {}", session_id))?
-            .key.clone();
+            .key
+            .clone();
 
         self.decrypt_with_aes_gcm(&key, encrypted)
     }
@@ -914,19 +1022,20 @@ impl SecurityManager {
     fn encrypt_with_aes_gcm(&self, key: &[u8], data: &[u8], key_id: &str) -> Result<EncryptedData> {
         let cipher = Aes256Gcm::new_from_slice(key)
             .map_err(|e| anyhow::anyhow!("Failed to create cipher: {}", e))?;
-        
+
         // Generate random nonce
         let mut nonce_bytes = [0u8; 12];
         OsRng.fill_bytes(&mut nonce_bytes);
         let nonce = Nonce::from_slice(&nonce_bytes);
-        
-        let ciphertext = cipher.encrypt(nonce, data)
+
+        let ciphertext = cipher
+            .encrypt(nonce, data)
             .map_err(|e| anyhow::anyhow!("Encryption failed: {}", e))?;
-        
+
         // AES-GCM includes the tag in the ciphertext, extract it
         let tag_start = ciphertext.len().saturating_sub(16);
         let (ct, tag) = ciphertext.split_at(tag_start);
-        
+
         Ok(EncryptedData {
             ciphertext: ct.to_vec(),
             nonce: nonce_bytes.to_vec(),
@@ -940,19 +1049,19 @@ impl SecurityManager {
     fn decrypt_with_aes_gcm(&self, key: &[u8], encrypted: &EncryptedData) -> Result<Vec<u8>> {
         let cipher = Aes256Gcm::new_from_slice(key)
             .map_err(|e| anyhow::anyhow!("Failed to create cipher: {}", e))?;
-        
+
         let nonce = Nonce::from_slice(&encrypted.nonce);
-        
+
         // Reconstruct ciphertext with tag
         let mut ciphertext_with_tag = encrypted.ciphertext.clone();
         ciphertext_with_tag.extend_from_slice(&encrypted.tag);
-        
-        let plaintext = cipher.decrypt(nonce, ciphertext_with_tag.as_ref())
+
+        let plaintext = cipher
+            .decrypt(nonce, ciphertext_with_tag.as_ref())
             .map_err(|e| anyhow::anyhow!("Decryption failed: {}", e))?;
-        
+
         Ok(plaintext)
     }
-
 
     /// Detect and handle security threats
     /// Requirement 10.6: Detect security threats and terminate connections
@@ -967,9 +1076,9 @@ impl SecurityManager {
             None,
             format!("Security threat detected: {:?}", threat),
         );
-        
+
         tracing::error!("Security threat detected: {:?}", threat);
-        
+
         // Notify registered callbacks
         tokio::spawn({
             let callbacks = self.threat_callbacks.clone();
@@ -981,95 +1090,101 @@ impl SecurityManager {
                 }
             }
         });
-        
+
         match threat {
-            SecurityThreat::InvalidCertificate => {
-                Err(anyhow::anyhow!("Invalid certificate detected - connection terminated"))
-            }
-            SecurityThreat::EncryptionFailure => {
-                Err(anyhow::anyhow!("Encryption failure - connection terminated"))
-            }
-            SecurityThreat::UnauthorizedAccess => {
-                Err(anyhow::anyhow!("Unauthorized access attempt - connection terminated"))
-            }
-            SecurityThreat::ManInTheMiddle => {
-                Err(anyhow::anyhow!("Man-in-the-middle attack detected - connection terminated"))
-            }
-            SecurityThreat::KeyCompromise => {
-                Err(anyhow::anyhow!("Key compromise detected - connection terminated"))
-            }
-            SecurityThreat::ReplayAttack => {
-                Err(anyhow::anyhow!("Replay attack detected - connection terminated"))
-            }
-            SecurityThreat::TamperingDetected => {
-                Err(anyhow::anyhow!("Data tampering detected - connection terminated"))
-            }
+            SecurityThreat::InvalidCertificate => Err(anyhow::anyhow!(
+                "Invalid certificate detected - connection terminated"
+            )),
+            SecurityThreat::EncryptionFailure => Err(anyhow::anyhow!(
+                "Encryption failure - connection terminated"
+            )),
+            SecurityThreat::UnauthorizedAccess => Err(anyhow::anyhow!(
+                "Unauthorized access attempt - connection terminated"
+            )),
+            SecurityThreat::ManInTheMiddle => Err(anyhow::anyhow!(
+                "Man-in-the-middle attack detected - connection terminated"
+            )),
+            SecurityThreat::KeyCompromise => Err(anyhow::anyhow!(
+                "Key compromise detected - connection terminated"
+            )),
+            SecurityThreat::ReplayAttack => Err(anyhow::anyhow!(
+                "Replay attack detected - connection terminated"
+            )),
+            SecurityThreat::TamperingDetected => Err(anyhow::anyhow!(
+                "Data tampering detected - connection terminated"
+            )),
         }
     }
-    
+
     /// Detect replay attacks by checking for duplicate nonces
     /// Requirement 10.6: Detect security threats
     pub async fn detect_replay_attack(&self, session_id: &str, nonce: &[u8]) -> Result<bool> {
         if !self.threat_detection_config.detect_replay_attacks {
             return Ok(false);
         }
-        
+
         let mut replay_states = self.replay_detection.write().await;
-        let state = replay_states.entry(session_id.to_string())
+        let state = replay_states
+            .entry(session_id.to_string())
             .or_insert_with(ReplayDetectionState::default);
-        
+
         // Clean up old nonces if needed
         if state.oldest_nonce_time.elapsed() > Duration::from_secs(state.nonce_expiration_secs) {
             state.seen_nonces.clear();
             state.oldest_nonce_time = Instant::now();
         }
-        
+
         // Check if nonce was already seen
         if state.seen_nonces.contains(nonce) {
             tracing::warn!("Replay attack detected for session: {}", session_id);
             let _ = self.detect_security_threat(SecurityThreat::ReplayAttack);
             return Ok(true);
         }
-        
+
         // Add nonce to seen set
         if state.seen_nonces.len() >= state.max_nonces {
             // Remove oldest entries (simple approach: clear half)
-            let to_remove: Vec<_> = state.seen_nonces.iter().take(state.max_nonces / 2).cloned().collect();
+            let to_remove: Vec<_> = state
+                .seen_nonces
+                .iter()
+                .take(state.max_nonces / 2)
+                .cloned()
+                .collect();
             for nonce in to_remove {
                 state.seen_nonces.remove(&nonce);
             }
         }
-        
+
         state.seen_nonces.insert(nonce.to_vec());
         Ok(false)
     }
-    
+
     /// Detect data tampering by verifying integrity
     /// Requirement 10.6: Detect security threats
     pub fn detect_tampering(&self, data: &[u8], expected_hash: &[u8]) -> Result<bool> {
         if !self.threat_detection_config.detect_tampering {
             return Ok(false);
         }
-        
+
         if !self.verify_integrity(data, expected_hash) {
             tracing::warn!("Data tampering detected");
             let _ = self.detect_security_threat(SecurityThreat::TamperingDetected);
             return Ok(true);
         }
-        
+
         Ok(false)
     }
-    
+
     /// Track failed authentication attempts for brute force detection
     /// Requirement 10.6: Detect security threats
     pub async fn track_failed_attempt(&self, identifier: &str) -> Result<bool> {
         if !self.threat_detection_config.detect_brute_force {
             return Ok(false);
         }
-        
+
         let mut tracker = self.failed_attempts.write().await;
         let now = Instant::now();
-        
+
         // Check if already locked out
         if let Some(unlock_time) = tracker.lockouts.get(identifier) {
             if now < *unlock_time {
@@ -1080,33 +1195,42 @@ impl SecurityManager {
                 tracker.lockouts.remove(identifier);
             }
         }
-        
+
         // Add failed attempt
-        let attempts = tracker.attempts.entry(identifier.to_string()).or_insert_with(Vec::new);
-        
+        let attempts = tracker
+            .attempts
+            .entry(identifier.to_string())
+            .or_insert_with(Vec::new);
+
         // Remove old attempts outside the window
-        let window_start = now - Duration::from_secs(self.threat_detection_config.attempt_window_secs);
+        let window_start =
+            now - Duration::from_secs(self.threat_detection_config.attempt_window_secs);
         attempts.retain(|t| *t > window_start);
-        
+
         // Add new attempt
         attempts.push(now);
-        
+
         // Check if threshold exceeded
-        let should_lockout = attempts.len() >= self.threat_detection_config.max_failed_attempts as usize;
-        
+        let should_lockout =
+            attempts.len() >= self.threat_detection_config.max_failed_attempts as usize;
+
         if should_lockout {
-            let unlock_time = now + Duration::from_secs(self.threat_detection_config.lockout_duration_secs);
+            let unlock_time =
+                now + Duration::from_secs(self.threat_detection_config.lockout_duration_secs);
             tracker.lockouts.insert(identifier.to_string(), unlock_time);
             tracker.attempts.get_mut(identifier).map(|a| a.clear());
-            
-            tracing::warn!("Account locked due to too many failed attempts: {}", identifier);
+
+            tracing::warn!(
+                "Account locked due to too many failed attempts: {}",
+                identifier
+            );
             let _ = self.detect_security_threat(SecurityThreat::UnauthorizedAccess);
             return Ok(true);
         }
-        
+
         Ok(false)
     }
-    
+
     /// Check if an identifier is currently locked out
     pub async fn is_locked_out(&self, identifier: &str) -> bool {
         let tracker = self.failed_attempts.read().await;
@@ -1116,38 +1240,44 @@ impl SecurityManager {
             false
         }
     }
-    
+
     /// Clear failed attempts for an identifier (e.g., after successful auth)
     pub async fn clear_failed_attempts(&self, identifier: &str) {
         let mut tracker = self.failed_attempts.write().await;
         tracker.attempts.remove(identifier);
         tracker.lockouts.remove(identifier);
     }
-    
+
     /// Configure threat detection settings
     pub fn configure_threat_detection(&mut self, config: ThreatDetectionConfig) {
         self.threat_detection_config = config;
         tracing::info!("Threat detection configuration updated");
     }
-    
+
     /// Get threat detection configuration
     pub fn get_threat_detection_config(&self) -> &ThreatDetectionConfig {
         &self.threat_detection_config
     }
-    
+
     /// Perform comprehensive security check on incoming data
     /// Requirement 10.6: Detect security threats
-    pub async fn security_check(&self, session_id: &str, nonce: &[u8], data: &[u8], hash: &[u8]) -> Result<()> {
+    pub async fn security_check(
+        &self,
+        session_id: &str,
+        nonce: &[u8],
+        data: &[u8],
+        hash: &[u8],
+    ) -> Result<()> {
         // Check for replay attack
         if self.detect_replay_attack(session_id, nonce).await? {
             return Err(anyhow::anyhow!("Replay attack detected"));
         }
-        
+
         // Check for tampering
         if self.detect_tampering(data, hash)? {
             return Err(anyhow::anyhow!("Data tampering detected"));
         }
-        
+
         Ok(())
     }
 
@@ -1174,10 +1304,14 @@ impl SecurityManager {
         hasher.finalize().to_vec()
     }
 
-
     /// Log a security event
-    fn log_event(&self, event_type: SecurityEventType, session_id: Option<String>, 
-                 device_id: Option<String>, details: String) {
+    fn log_event(
+        &self,
+        event_type: SecurityEventType,
+        session_id: Option<String>,
+        device_id: Option<String>,
+        details: String,
+    ) {
         let event = SecurityEvent {
             timestamp: chrono::Utc::now().to_rfc3339(),
             event_type,
@@ -1185,7 +1319,7 @@ impl SecurityManager {
             device_id,
             details,
         };
-        
+
         // Spawn async task to log event
         let events = self.security_events.clone();
         tokio::spawn(async move {
@@ -1235,22 +1369,22 @@ impl SecurityManager {
         if remote_public_key.len() != 32 {
             return Err(anyhow::anyhow!("Invalid public key length"));
         }
-        
+
         let secret = EphemeralSecret::random_from_rng(OsRng);
         let public = PublicKey::from(&secret);
-        
+
         let mut remote_key_bytes = [0u8; 32];
         remote_key_bytes.copy_from_slice(remote_public_key);
         let remote_public = PublicKey::from(remote_key_bytes);
-        
+
         let shared_secret = secret.diffie_hellman(&remote_public);
-        
+
         // Derive key using HKDF
         let hk = hkdf::Hkdf::<Sha256>::new(None, shared_secret.as_bytes());
         let mut derived_key = vec![0u8; 32];
         hk.expand(b"session-key", &mut derived_key)
             .map_err(|_| anyhow::anyhow!("Key derivation failed"))?;
-        
+
         Ok(derived_key)
     }
 

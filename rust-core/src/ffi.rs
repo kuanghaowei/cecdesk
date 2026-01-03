@@ -40,7 +40,7 @@ pub extern "C" fn webrtc_engine_create() -> WebRTCEngineHandle {
         Ok(rt) => rt,
         Err(_) => return std::ptr::null_mut(),
     };
-    
+
     match rt.block_on(WebRTCEngine::new()) {
         Ok(engine) => Box::into_raw(Box::new(engine)) as WebRTCEngineHandle,
         Err(_) => std::ptr::null_mut(),
@@ -81,16 +81,17 @@ pub extern "C" fn webrtc_engine_create_peer_connection(
             rtcp_mux_policy: None,
         };
 
-        match tokio::runtime::Runtime::new().unwrap().block_on(engine.create_peer_connection(config)) {
-            Ok(connection_id) => {
-                match CString::new(connection_id) {
-                    Ok(c_string) => {
-                        *connection_id_out = c_string.into_raw();
-                        FFI_SUCCESS
-                    }
-                    Err(_) => FFI_ERROR_UNKNOWN,
+        match tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(engine.create_peer_connection(config))
+        {
+            Ok(connection_id) => match CString::new(connection_id) {
+                Ok(c_string) => {
+                    *connection_id_out = c_string.into_raw();
+                    FFI_SUCCESS
                 }
-            }
+                Err(_) => FFI_ERROR_UNKNOWN,
+            },
             Err(_) => FFI_ERROR_CONNECTION_FAILED,
         }
     }
@@ -115,10 +116,11 @@ pub extern "C" fn webrtc_engine_send_data(
         };
 
         let data_slice = std::slice::from_raw_parts(data, data_len);
-        
-        match tokio::runtime::Runtime::new().unwrap().block_on(
-            engine.send_data(connection_id_str, data_slice.to_vec())
-        ) {
+
+        match tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(engine.send_data(connection_id_str, data_slice.to_vec()))
+        {
             Ok(_) => FFI_SUCCESS,
             Err(_) => FFI_ERROR_UNKNOWN,
         }
@@ -162,7 +164,10 @@ pub extern "C" fn signaling_client_connect(handle: SignalingClientHandle) -> c_i
 
     unsafe {
         let client = &mut *(handle as *mut SignalingClient);
-        match tokio::runtime::Runtime::new().unwrap().block_on(client.connect()) {
+        match tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(client.connect())
+        {
             Ok(_) => FFI_SUCCESS,
             Err(_) => FFI_ERROR_CONNECTION_FAILED,
         }
@@ -184,10 +189,18 @@ pub extern "C" fn signaling_client_register_device(
         let device_info_ref = &*device_info;
 
         let device_info_rust = crate::signaling::DeviceInfo {
-            device_id: CStr::from_ptr(device_info_ref.device_id).to_string_lossy().to_string(),
-            device_name: CStr::from_ptr(device_info_ref.device_name).to_string_lossy().to_string(),
-            platform: CStr::from_ptr(device_info_ref.platform).to_string_lossy().to_string(),
-            version: CStr::from_ptr(device_info_ref.version).to_string_lossy().to_string(),
+            device_id: CStr::from_ptr(device_info_ref.device_id)
+                .to_string_lossy()
+                .to_string(),
+            device_name: CStr::from_ptr(device_info_ref.device_name)
+                .to_string_lossy()
+                .to_string(),
+            platform: CStr::from_ptr(device_info_ref.platform)
+                .to_string_lossy()
+                .to_string(),
+            version: CStr::from_ptr(device_info_ref.version)
+                .to_string_lossy()
+                .to_string(),
             capabilities: crate::signaling::DeviceCapabilities {
                 screen_capture: true,
                 audio_capture: true,
@@ -196,16 +209,17 @@ pub extern "C" fn signaling_client_register_device(
             },
         };
 
-        match tokio::runtime::Runtime::new().unwrap().block_on(client.register_device(device_info_rust)) {
-            Ok(device_id) => {
-                match CString::new(device_id) {
-                    Ok(c_string) => {
-                        *device_id_out = c_string.into_raw();
-                        FFI_SUCCESS
-                    }
-                    Err(_) => FFI_ERROR_UNKNOWN,
+        match tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(client.register_device(device_info_rust))
+        {
+            Ok(device_id) => match CString::new(device_id) {
+                Ok(c_string) => {
+                    *device_id_out = c_string.into_raw();
+                    FFI_SUCCESS
                 }
-            }
+                Err(_) => FFI_ERROR_UNKNOWN,
+            },
             Err(_) => FFI_ERROR_CONNECTION_FAILED,
         }
     }
@@ -239,9 +253,7 @@ pub extern "C" fn init_logging(level: c_int) -> c_int {
         _ => tracing::Level::TRACE,
     };
 
-    tracing_subscriber::fmt()
-        .with_max_level(log_level)
-        .init();
+    tracing_subscriber::fmt().with_max_level(log_level).init();
 
     FFI_SUCCESS
 }

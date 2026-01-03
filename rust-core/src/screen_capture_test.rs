@@ -1,9 +1,9 @@
 //! Property-based tests for Screen Capture module
 
-use proptest::prelude::*;
 use crate::screen_capture::{
-    ScreenCapturer, NetworkConditions, AdaptiveBitrateConfig, QualityPreset,
+    AdaptiveBitrateConfig, NetworkConditions, QualityPreset, ScreenCapturer,
 };
+use proptest::prelude::*;
 
 prop_compose! {
     fn arb_network_conditions()(
@@ -51,7 +51,7 @@ proptest! {
             capturer.set_adaptive_config(config.clone()).await;
             capturer.adapt_to_network_conditions(conditions.clone()).await;
             let options = capturer.get_current_options().await;
-            
+
             assert!(options.bitrate >= config.min_bitrate && options.bitrate <= config.max_bitrate);
             assert!(options.frame_rate >= config.min_frame_rate && options.frame_rate <= config.max_frame_rate);
         });
@@ -70,11 +70,11 @@ proptest! {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let capturer = ScreenCapturer::new();
-            
+
             capturer.apply_quality_preset(preset).await;
             let options = capturer.get_current_options().await;
             assert!(options.frame_rate >= 15 && options.frame_rate <= 60);
-            
+
             capturer.set_frame_rate(manual_fps).await;
             let options = capturer.get_current_options().await;
             assert!(options.frame_rate >= 15 && options.frame_rate <= 60);
@@ -89,13 +89,13 @@ mod unit_tests {
     #[tokio::test]
     async fn test_quality_preset_frame_rates() {
         let capturer = ScreenCapturer::new();
-        
+
         capturer.apply_quality_preset(QualityPreset::Low).await;
         assert_eq!(capturer.get_current_options().await.frame_rate, 15);
-        
+
         capturer.apply_quality_preset(QualityPreset::Balanced).await;
         assert_eq!(capturer.get_current_options().await.frame_rate, 30);
-        
+
         capturer.apply_quality_preset(QualityPreset::High).await;
         assert_eq!(capturer.get_current_options().await.frame_rate, 60);
     }

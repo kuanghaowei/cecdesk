@@ -9,10 +9,10 @@ use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct NetworkStats {
-    pub rtt: u32,                      // milliseconds
-    pub packet_loss: f32,              // percentage
-    pub jitter: u32,                   // milliseconds
-    pub bandwidth: u64,                // bits per second
+    pub rtt: u32,         // milliseconds
+    pub packet_loss: f32, // percentage
+    pub jitter: u32,      // milliseconds
+    pub bandwidth: u64,   // bits per second
     pub connection_type: ConnectionType,
     pub local_address: Option<String>,
     pub remote_address: Option<String>,
@@ -82,7 +82,6 @@ pub enum NetworkEvent {
     QualityWarning(String),
 }
 
-
 #[derive(Debug, Clone)]
 pub struct IceCandidate {
     pub candidate: String,
@@ -128,7 +127,7 @@ pub struct NetworkManager {
 impl NetworkManager {
     pub fn new() -> Self {
         let (event_sender, event_receiver) = mpsc::unbounded_channel();
-        
+
         Self {
             id: Uuid::new_v4().to_string(),
             preferred_protocol: Arc::new(RwLock::new(NetworkProtocol::IPv6)),
@@ -162,13 +161,13 @@ impl NetworkManager {
         // Check network availability
         self.check_ipv6_availability().await;
         self.check_ipv4_availability().await;
-        
+
         tracing::info!(
             "Network initialized - IPv4: {}, IPv6: {}",
             *self.ipv4_available.read().await,
             *self.ipv6_available.read().await
         );
-        
+
         Ok(())
     }
 
@@ -199,7 +198,7 @@ impl NetworkManager {
     pub async fn set_preferred_protocol(&self, protocol: NetworkProtocol) {
         let old_protocol = *self.preferred_protocol.read().await;
         *self.preferred_protocol.write().await = protocol;
-        
+
         if old_protocol != protocol {
             tracing::info!("Set preferred network protocol: {:?}", protocol);
         }
@@ -231,11 +230,10 @@ impl NetworkManager {
         self.turn_servers.read().await.clone()
     }
 
-
     // NAT Traversal and Connection Establishment
     pub async fn establish_connection(&self, target: &str) -> Result<ConnectionType> {
         let preferred = *self.preferred_protocol.read().await;
-        
+
         // Try IPv6 first if preferred and available
         if preferred == NetworkProtocol::IPv6 && *self.ipv6_available.read().await {
             match self.try_ipv6_connection(target).await {
@@ -289,13 +287,16 @@ impl NetworkManager {
 
     pub async fn attempt_stun_connection(&self) -> Result<ConnectionType> {
         let servers = self.stun_servers.read().await;
-        
+
         for server in servers.iter() {
             tracing::debug!("Trying STUN server: {}", server.url);
-            
+
             match self.stun_binding_request(&server).await {
                 Ok(reflexive_addr) => {
-                    tracing::info!("STUN binding successful, reflexive address: {:?}", reflexive_addr);
+                    tracing::info!(
+                        "STUN binding successful, reflexive address: {:?}",
+                        reflexive_addr
+                    );
                     return Ok(ConnectionType::StunDirect);
                 }
                 Err(e) => {
@@ -311,22 +312,28 @@ impl NetworkManager {
     async fn stun_binding_request(&self, server: &StunServer) -> Result<SocketAddr> {
         // Placeholder - would perform actual STUN binding request
         // Returns the server-reflexive address
-        Ok(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(203, 0, 113, 1)), 12345))
+        Ok(SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(203, 0, 113, 1)),
+            12345,
+        ))
     }
 
     pub async fn attempt_turn_connection(&self) -> Result<ConnectionType> {
         let servers = self.turn_servers.read().await;
-        
+
         if servers.is_empty() {
             return Err(anyhow::anyhow!("No TURN servers configured"));
         }
 
         for server in servers.iter() {
             tracing::debug!("Trying TURN server: {}", server.url);
-            
+
             match self.turn_allocate_request(&server).await {
                 Ok(relay_addr) => {
-                    tracing::info!("TURN allocation successful, relay address: {:?}", relay_addr);
+                    tracing::info!(
+                        "TURN allocation successful, relay address: {:?}",
+                        relay_addr
+                    );
                     return Ok(ConnectionType::TurnRelay);
                 }
                 Err(e) => {
@@ -341,32 +348,35 @@ impl NetworkManager {
 
     async fn turn_allocate_request(&self, server: &TurnServer) -> Result<SocketAddr> {
         // Placeholder - would perform actual TURN allocation
-        Ok(SocketAddr::new(IpAddr::V4(Ipv4Addr::new(198, 51, 100, 1)), 54321))
+        Ok(SocketAddr::new(
+            IpAddr::V4(Ipv4Addr::new(198, 51, 100, 1)),
+            54321,
+        ))
     }
 
     // ICE Candidate Management
     pub async fn gather_ice_candidates(&self) -> Result<Vec<IceCandidate>> {
         let mut candidates = Vec::new();
-        
+
         // Gather host candidates
         candidates.extend(self.gather_host_candidates().await?);
-        
+
         // Gather server-reflexive candidates via STUN
         candidates.extend(self.gather_srflx_candidates().await?);
-        
+
         // Gather relay candidates via TURN
         candidates.extend(self.gather_relay_candidates().await?);
-        
+
         // Store candidates
         *self.ice_candidates.lock().await = candidates.clone();
-        
+
         tracing::info!("Gathered {} ICE candidates", candidates.len());
         Ok(candidates)
     }
 
     async fn gather_host_candidates(&self) -> Result<Vec<IceCandidate>> {
         let mut candidates = Vec::new();
-        
+
         // Get local network interfaces
         // Placeholder - would enumerate actual network interfaces
         if *self.ipv4_available.read().await {
@@ -382,7 +392,7 @@ impl NetworkManager {
                 protocol: IceProtocol::Udp,
             });
         }
-        
+
         if *self.ipv6_available.read().await {
             candidates.push(IceCandidate {
                 candidate: "candidate:2 1 UDP 2130706430 ::1 54322 typ host".to_string(),
@@ -396,14 +406,14 @@ impl NetworkManager {
                 protocol: IceProtocol::Udp,
             });
         }
-        
+
         Ok(candidates)
     }
 
     async fn gather_srflx_candidates(&self) -> Result<Vec<IceCandidate>> {
         let mut candidates = Vec::new();
         let servers = self.stun_servers.read().await;
-        
+
         for server in servers.iter() {
             if let Ok(reflexive_addr) = self.stun_binding_request(server).await {
                 candidates.push(IceCandidate {
@@ -424,14 +434,14 @@ impl NetworkManager {
                 break; // Use first successful STUN server
             }
         }
-        
+
         Ok(candidates)
     }
 
     async fn gather_relay_candidates(&self) -> Result<Vec<IceCandidate>> {
         let mut candidates = Vec::new();
         let servers = self.turn_servers.read().await;
-        
+
         for server in servers.iter() {
             if let Ok(relay_addr) = self.turn_allocate_request(server).await {
                 candidates.push(IceCandidate {
@@ -452,7 +462,7 @@ impl NetworkManager {
                 break; // Use first successful TURN server
             }
         }
-        
+
         Ok(candidates)
     }
 
@@ -460,30 +470,29 @@ impl NetworkManager {
         self.ice_candidates.lock().await.clone()
     }
 
-
     // Network Quality Monitoring
     pub async fn start_monitoring(&self) -> Result<()> {
         if *self.is_monitoring.read().await {
             return Ok(());
         }
-        
+
         *self.is_monitoring.write().await = true;
-        
+
         let is_monitoring = Arc::clone(&self.is_monitoring);
         let current_stats = Arc::clone(&self.current_stats);
         let stats_history = Arc::clone(&self.stats_history);
         let event_sender = self.event_sender.clone();
-        
+
         tokio::spawn(async move {
             let mut last_quality = NetworkQuality::Unknown;
-            
+
             while *is_monitoring.read().await {
                 // Measure network stats
                 let stats = Self::measure_stats_internal().await;
-                
+
                 // Update current stats
                 *current_stats.write().await = stats.clone();
-                
+
                 // Add to history (keep last 60 samples)
                 {
                     let mut history = stats_history.lock().await;
@@ -492,30 +501,31 @@ impl NetworkManager {
                         history.remove(0);
                     }
                 }
-                
+
                 // Calculate quality
                 let quality = Self::calculate_quality(&stats);
-                
+
                 // Send events if quality changed
                 if quality != last_quality {
                     let _ = event_sender.send(NetworkEvent::QualityChanged(quality));
-                    
+
                     if quality == NetworkQuality::Poor {
-                        let _ = event_sender.send(NetworkEvent::QualityWarning(
-                            format!("Network quality degraded: RTT={}ms, Loss={:.1}%", stats.rtt, stats.packet_loss)
-                        ));
+                        let _ = event_sender.send(NetworkEvent::QualityWarning(format!(
+                            "Network quality degraded: RTT={}ms, Loss={:.1}%",
+                            stats.rtt, stats.packet_loss
+                        )));
                     }
-                    
+
                     last_quality = quality;
                 }
-                
+
                 let _ = event_sender.send(NetworkEvent::StatsUpdated(stats));
-                
+
                 // Monitor every second
                 tokio::time::sleep(Duration::from_secs(1)).await;
             }
         });
-        
+
         tracing::info!("Network monitoring started");
         Ok(())
     }
@@ -532,7 +542,7 @@ impl NetworkManager {
         // 2. Track packet loss from RTP statistics
         // 3. Calculate jitter from packet arrival times
         // 4. Estimate bandwidth from throughput measurements
-        
+
         NetworkStats {
             rtt: 50,
             packet_loss: 0.5,
@@ -582,17 +592,17 @@ impl NetworkManager {
 
     pub async fn get_average_stats(&self) -> NetworkStats {
         let history = self.stats_history.lock().await;
-        
+
         if history.is_empty() {
             return NetworkStats::default();
         }
-        
+
         let count = history.len() as u32;
         let total_rtt: u32 = history.iter().map(|s| s.rtt).sum();
         let total_loss: f32 = history.iter().map(|s| s.packet_loss).sum();
         let total_jitter: u32 = history.iter().map(|s| s.jitter).sum();
         let total_bandwidth: u64 = history.iter().map(|s| s.bandwidth).sum();
-        
+
         NetworkStats {
             rtt: total_rtt / count,
             packet_loss: total_loss / count as f32,
@@ -628,40 +638,75 @@ mod tests {
     #[tokio::test]
     async fn test_protocol_preference() {
         let manager = NetworkManager::new();
-        
+
         // Default should be IPv6
-        assert_eq!(manager.get_preferred_protocol().await, NetworkProtocol::IPv6);
-        
+        assert_eq!(
+            manager.get_preferred_protocol().await,
+            NetworkProtocol::IPv6
+        );
+
         // Change to IPv4
         manager.set_preferred_protocol(NetworkProtocol::IPv4).await;
-        assert_eq!(manager.get_preferred_protocol().await, NetworkProtocol::IPv4);
+        assert_eq!(
+            manager.get_preferred_protocol().await,
+            NetworkProtocol::IPv4
+        );
     }
 
     #[tokio::test]
     async fn test_network_quality_calculation() {
-        let excellent = NetworkStats { rtt: 30, packet_loss: 0.5, ..Default::default() };
-        assert_eq!(NetworkManager::calculate_quality(&excellent), NetworkQuality::Excellent);
-        
-        let good = NetworkStats { rtt: 80, packet_loss: 2.0, ..Default::default() };
-        assert_eq!(NetworkManager::calculate_quality(&good), NetworkQuality::Good);
-        
-        let fair = NetworkStats { rtt: 150, packet_loss: 4.0, ..Default::default() };
-        assert_eq!(NetworkManager::calculate_quality(&fair), NetworkQuality::Fair);
-        
-        let poor = NetworkStats { rtt: 300, packet_loss: 10.0, ..Default::default() };
-        assert_eq!(NetworkManager::calculate_quality(&poor), NetworkQuality::Poor);
+        let excellent = NetworkStats {
+            rtt: 30,
+            packet_loss: 0.5,
+            ..Default::default()
+        };
+        assert_eq!(
+            NetworkManager::calculate_quality(&excellent),
+            NetworkQuality::Excellent
+        );
+
+        let good = NetworkStats {
+            rtt: 80,
+            packet_loss: 2.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            NetworkManager::calculate_quality(&good),
+            NetworkQuality::Good
+        );
+
+        let fair = NetworkStats {
+            rtt: 150,
+            packet_loss: 4.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            NetworkManager::calculate_quality(&fair),
+            NetworkQuality::Fair
+        );
+
+        let poor = NetworkStats {
+            rtt: 300,
+            packet_loss: 10.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            NetworkManager::calculate_quality(&poor),
+            NetworkQuality::Poor
+        );
     }
 
     #[tokio::test]
     async fn test_ice_candidate_gathering() {
         let manager = NetworkManager::new();
         manager.initialize().await.unwrap();
-        
+
         let candidates = manager.gather_ice_candidates().await.unwrap();
         assert!(!candidates.is_empty());
-        
+
         // Should have at least host candidates
-        let host_candidates: Vec<_> = candidates.iter()
+        let host_candidates: Vec<_> = candidates
+            .iter()
             .filter(|c| c.candidate_type == IceCandidateType::Host)
             .collect();
         assert!(!host_candidates.is_empty());

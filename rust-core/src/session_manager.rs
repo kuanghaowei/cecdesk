@@ -1,9 +1,9 @@
 use anyhow::Result;
+use chrono::{DateTime, Duration, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 use uuid::Uuid;
-use chrono::{DateTime, Utc, Duration};
 
 /// 会话状态枚举
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -88,8 +88,8 @@ impl Default for SessionStats {
 /// 连接类型
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ConnectionType {
-    Direct,      // P2P 直连
-    Relay,       // TURN 中继
+    Direct, // P2P 直连
+    Relay,  // TURN 中继
     Unknown,
 }
 
@@ -130,11 +130,17 @@ impl Session {
     }
 
     /// 更新会话统计
-    pub fn update_stats(&mut self, latency: u32, packet_loss: f32, jitter: u32, bytes_delta: (u64, u64)) {
+    pub fn update_stats(
+        &mut self,
+        latency: u32,
+        packet_loss: f32,
+        jitter: u32,
+        bytes_delta: (u64, u64),
+    ) {
         self.stats.duration_secs = self.duration_secs();
         self.stats.bytes_sent += bytes_delta.0;
         self.stats.bytes_received += bytes_delta.1;
-        
+
         // 更新延迟统计
         if latency > 0 {
             if self.stats.average_latency_ms == 0 {
@@ -146,10 +152,11 @@ impl Session {
             self.stats.max_latency_ms = self.stats.max_latency_ms.max(latency);
             self.stats.min_latency_ms = self.stats.min_latency_ms.min(latency);
         }
-        
+
         self.stats.packet_loss_percent = packet_loss;
         self.stats.jitter_ms = jitter;
-        self.stats.connection_quality = ConnectionQuality::from_metrics(latency, packet_loss, jitter);
+        self.stats.connection_quality =
+            ConnectionQuality::from_metrics(latency, packet_loss, jitter);
     }
 }
 
@@ -246,15 +253,38 @@ impl PermissionRequest {
 /// 会话事件类型
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum SessionEvent {
-    Created { session_id: String, controller_id: String, controlled_id: String },
-    Started { session_id: String },
-    Paused { session_id: String },
-    Resumed { session_id: String },
-    Ended { session_id: String, reason: EndReason },
-    StatsUpdated { session_id: String, stats: SessionStats },
-    PermissionRequested { request_id: String, permissions: Vec<Permission> },
-    PermissionGranted { request_id: String },
-    PermissionDenied { request_id: String },
+    Created {
+        session_id: String,
+        controller_id: String,
+        controlled_id: String,
+    },
+    Started {
+        session_id: String,
+    },
+    Paused {
+        session_id: String,
+    },
+    Resumed {
+        session_id: String,
+    },
+    Ended {
+        session_id: String,
+        reason: EndReason,
+    },
+    StatsUpdated {
+        session_id: String,
+        stats: SessionStats,
+    },
+    PermissionRequested {
+        request_id: String,
+        permissions: Vec<Permission>,
+    },
+    PermissionGranted {
+        request_id: String,
+    },
+    PermissionDenied {
+        request_id: String,
+    },
 }
 
 /// 会话事件监听器
@@ -306,7 +336,11 @@ impl SessionManager {
     }
 
     /// 创建新会话
-    pub async fn create_session(&self, remote_id: String, options: SessionOptions) -> Result<Session> {
+    pub async fn create_session(
+        &self,
+        remote_id: String,
+        options: SessionOptions,
+    ) -> Result<Session> {
         let session = Session::new(
             self.local_device_id.clone(),
             remote_id.clone(),
@@ -314,7 +348,7 @@ impl SessionManager {
         );
 
         let session_id = session.session_id.clone();
-        
+
         if let Ok(mut sessions) = self.active_sessions.write() {
             sessions.insert(session_id.clone(), session.clone());
         }
@@ -331,19 +365,21 @@ impl SessionManager {
 
     /// 加入会话（被控端）
     pub async fn join_session(&self, session_id: String) -> Result<Session> {
-        let mut sessions = self.active_sessions.write()
+        let mut sessions = self
+            .active_sessions
+            .write()
             .map_err(|_| anyhow::anyhow!("Failed to acquire lock"))?;
-        
+
         if let Some(session) = sessions.get_mut(&session_id) {
             session.status = SessionStatus::Active;
             let session_clone = session.clone();
-            
+
             drop(sessions);
-            
+
             self.emit_event(SessionEvent::Started {
                 session_id: session_id.clone(),
             });
-            
+
             tracing::info!("Joined session: {}", session_id);
             Ok(session_clone)
         } else {
@@ -353,16 +389,18 @@ impl SessionManager {
 
     /// 暂停会话
     pub fn pause_session(&self, session_id: &str) -> Result<()> {
-        let mut sessions = self.active_sessions.write()
+        let mut sessions = self
+            .active_sessions
+            .write()
             .map_err(|_| anyhow::anyhow!("Failed to acquire lock"))?;
-        
+
         if let Some(session) = sessions.get_mut(session_id) {
             session.status = SessionStatus::Paused;
-            
+
             self.emit_event(SessionEvent::Paused {
                 session_id: session_id.to_string(),
             });
-            
+
             tracing::info!("Paused session: {}", session_id);
             Ok(())
         } else {
@@ -372,16 +410,18 @@ impl SessionManager {
 
     /// 恢复会话
     pub fn resume_session(&self, session_id: &str) -> Result<()> {
-        let mut sessions = self.active_sessions.write()
+        let mut sessions = self
+            .active_sessions
+            .write()
             .map_err(|_| anyhow::anyhow!("Failed to acquire lock"))?;
-        
+
         if let Some(session) = sessions.get_mut(session_id) {
             session.status = SessionStatus::Active;
-            
+
             self.emit_event(SessionEvent::Resumed {
                 session_id: session_id.to_string(),
             });
-            
+
             tracing::info!("Resumed session: {}", session_id);
             Ok(())
         } else {
@@ -391,9 +431,11 @@ impl SessionManager {
 
     /// 结束会话
     pub fn end_session(&self, session_id: &str, reason: EndReason) -> Result<SessionRecord> {
-        let mut sessions = self.active_sessions.write()
+        let mut sessions = self
+            .active_sessions
+            .write()
             .map_err(|_| anyhow::anyhow!("Failed to acquire lock"))?;
-        
+
         if let Some(mut session) = sessions.remove(session_id) {
             session.status = SessionStatus::Ended;
             session.end_time = Some(Utc::now());
@@ -446,20 +488,22 @@ impl SessionManager {
         jitter: u32,
         bytes_delta: (u64, u64),
     ) -> Result<SessionStats> {
-        let mut sessions = self.active_sessions.write()
+        let mut sessions = self
+            .active_sessions
+            .write()
             .map_err(|_| anyhow::anyhow!("Failed to acquire lock"))?;
-        
+
         if let Some(session) = sessions.get_mut(session_id) {
             session.update_stats(latency, packet_loss, jitter, bytes_delta);
             let stats = session.stats.clone();
-            
+
             drop(sessions);
-            
+
             self.emit_event(SessionEvent::StatsUpdated {
                 session_id: session_id.to_string(),
                 stats: stats.clone(),
             });
-            
+
             Ok(stats)
         } else {
             Err(anyhow::anyhow!("Session not found: {}", session_id))
@@ -468,14 +512,16 @@ impl SessionManager {
 
     /// 获取活动会话列表
     pub fn get_active_sessions(&self) -> Vec<Session> {
-        self.active_sessions.read()
+        self.active_sessions
+            .read()
             .map(|sessions| sessions.values().cloned().collect())
             .unwrap_or_default()
     }
 
     /// 获取指定会话
     pub fn get_session(&self, session_id: &str) -> Option<Session> {
-        self.active_sessions.read()
+        self.active_sessions
+            .read()
             .ok()
             .and_then(|sessions| sessions.get(session_id).cloned())
     }
@@ -484,10 +530,12 @@ impl SessionManager {
     pub fn get_session_history(&self, days: Option<u32>) -> Vec<SessionRecord> {
         let days = days.unwrap_or(self.history_retention_days);
         let cutoff = Utc::now() - Duration::days(days as i64);
-        
-        self.session_history.read()
+
+        self.session_history
+            .read()
             .map(|history| {
-                history.iter()
+                history
+                    .iter()
                     .filter(|record| record.end_time > cutoff)
                     .cloned()
                     .collect()
@@ -497,21 +545,23 @@ impl SessionManager {
 
     /// 获取会话统计
     pub fn get_session_stats(&self, session_id: &str) -> Option<SessionStats> {
-        self.active_sessions.read()
+        self.active_sessions
+            .read()
             .ok()
             .and_then(|sessions| sessions.get(session_id).map(|s| s.stats.clone()))
     }
 
     /// 请求权限
-    pub async fn request_permission(&self, remote_id: String, permissions: Vec<Permission>) -> Result<String> {
-        let request = PermissionRequest::new(
-            self.local_device_id.clone(),
-            remote_id,
-            permissions.clone(),
-        );
-        
+    pub async fn request_permission(
+        &self,
+        remote_id: String,
+        permissions: Vec<Permission>,
+    ) -> Result<String> {
+        let request =
+            PermissionRequest::new(self.local_device_id.clone(), remote_id, permissions.clone());
+
         let request_id = request.request_id.clone();
-        
+
         if let Ok(mut requests) = self.pending_requests.write() {
             requests.insert(request_id.clone(), request);
         }
@@ -527,12 +577,17 @@ impl SessionManager {
 
     /// 授予或拒绝权限
     pub fn grant_permission(&self, request_id: &str, grant: bool) -> Result<()> {
-        let mut requests = self.pending_requests.write()
+        let mut requests = self
+            .pending_requests
+            .write()
             .map_err(|_| anyhow::anyhow!("Failed to acquire lock"))?;
-        
+
         if let Some(request) = requests.remove(request_id) {
             if request.is_expired() {
-                return Err(anyhow::anyhow!("Permission request expired: {}", request_id));
+                return Err(anyhow::anyhow!(
+                    "Permission request expired: {}",
+                    request_id
+                ));
             }
 
             if grant {
@@ -546,18 +601,23 @@ impl SessionManager {
                 });
                 tracing::info!("Permission request {} denied", request_id);
             }
-            
+
             Ok(())
         } else {
-            Err(anyhow::anyhow!("Permission request not found: {}", request_id))
+            Err(anyhow::anyhow!(
+                "Permission request not found: {}",
+                request_id
+            ))
         }
     }
 
     /// 获取待处理的权限请求
     pub fn get_pending_requests(&self) -> Vec<PermissionRequest> {
-        self.pending_requests.read()
+        self.pending_requests
+            .read()
             .map(|requests| {
-                requests.values()
+                requests
+                    .values()
                     .filter(|r| !r.is_expired())
                     .cloned()
                     .collect()
@@ -574,14 +634,14 @@ impl SessionManager {
 
     /// 获取会话摘要统计
     pub fn get_summary_stats(&self) -> SessionSummaryStats {
-        let history = self.session_history.read()
+        let history = self
+            .session_history
+            .read()
             .map(|h| h.clone())
             .unwrap_or_default();
-        
-        let active_count = self.active_sessions.read()
-            .map(|s| s.len())
-            .unwrap_or(0);
-        
+
+        let active_count = self.active_sessions.read().map(|s| s.len()).unwrap_or(0);
+
         let total_sessions = history.len();
         let total_duration: u64 = history.iter().map(|r| r.duration_secs).sum();
         let avg_duration = if total_sessions > 0 {
@@ -589,7 +649,7 @@ impl SessionManager {
         } else {
             0
         };
-        
+
         SessionSummaryStats {
             active_sessions: active_count,
             total_sessions_30_days: total_sessions,

@@ -1,5 +1,5 @@
 //! Device Authentication and Access Control
-//! 
+//!
 //! Implements device ID generation, temporary access codes, and permission management.
 //! Requirements: 5.1, 5.2, 5.4, 5.5, 5.7
 
@@ -93,7 +93,6 @@ impl AccessCode {
         }
     }
 }
-
 
 /// Device authorization record
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -240,11 +239,11 @@ impl AccessControlManager {
 
     /// Generate a temporary access code
     /// Requirement 5.2: Support Access_Code based temporary access authorization
-    pub async fn generate_access_code(
-        &self,
-        permissions: Vec<Permission>,
-    ) -> Result<AccessCode> {
-        let device_id = self.device_id.read().await
+    pub async fn generate_access_code(&self, permissions: Vec<Permission>) -> Result<AccessCode> {
+        let device_id = self
+            .device_id
+            .read()
+            .await
             .clone()
             .ok_or_else(|| anyhow::anyhow!("Device not registered"))?;
 
@@ -265,17 +264,19 @@ impl AccessControlManager {
             codes.insert(code.clone(), access_code.clone());
         }
 
-        tracing::info!("Generated access code: {} (expires in {} seconds)", 
-            code, ACCESS_CODE_EXPIRATION_SECS);
+        tracing::info!(
+            "Generated access code: {} (expires in {} seconds)",
+            code,
+            ACCESS_CODE_EXPIRATION_SECS
+        );
         Ok(access_code)
     }
-
 
     /// Validate an access code
     /// Requirement 5.7: Access code expires after 10 minutes
     pub async fn validate_access_code(&self, code: &str) -> Result<Option<AccessCode>> {
         let codes = self.access_codes.read().await;
-        
+
         if let Some(access_code) = codes.get(code) {
             if access_code.is_valid() {
                 Ok(Some(access_code.clone()))
@@ -295,7 +296,7 @@ impl AccessControlManager {
     /// Use an access code (marks it as used)
     pub async fn use_access_code(&self, code: &str) -> Result<Option<Vec<Permission>>> {
         let mut codes = self.access_codes.write().await;
-        
+
         if let Some(access_code) = codes.get_mut(code) {
             if access_code.is_valid() {
                 access_code.used = true;
@@ -360,13 +361,14 @@ impl AccessControlManager {
         rejection_reason: Option<String>,
     ) -> Result<ConnectionResponse> {
         let mut requests = self.pending_requests.write().await;
-        
-        let request = requests.remove(request_id)
+
+        let request = requests
+            .remove(request_id)
             .ok_or_else(|| anyhow::anyhow!("Request not found: {}", request_id))?;
 
         let response = if accepted {
-            let permissions = granted_permissions
-                .unwrap_or_else(|| request.requested_permissions.clone());
+            let permissions =
+                granted_permissions.unwrap_or_else(|| request.requested_permissions.clone());
 
             // Add to authorized devices
             let auth = DeviceAuthorization {
@@ -399,15 +401,19 @@ impl AccessControlManager {
             }
         };
 
-        tracing::info!("Connection request {} {}", request_id, 
-            if accepted { "accepted" } else { "rejected" });
+        tracing::info!(
+            "Connection request {} {}",
+            request_id,
+            if accepted { "accepted" } else { "rejected" }
+        );
         Ok(response)
     }
 
     /// Check if a device is authorized
     pub async fn is_device_authorized(&self, device_id: &str) -> bool {
         let authorized = self.authorized_devices.read().await;
-        authorized.get(device_id)
+        authorized
+            .get(device_id)
             .map(|auth| auth.active)
             .unwrap_or(false)
     }
@@ -415,7 +421,8 @@ impl AccessControlManager {
     /// Get permissions for an authorized device
     pub async fn get_device_permissions(&self, device_id: &str) -> Option<Vec<Permission>> {
         let authorized = self.authorized_devices.read().await;
-        authorized.get(device_id)
+        authorized
+            .get(device_id)
             .filter(|auth| auth.active)
             .map(|auth| auth.permissions.clone())
     }
@@ -423,7 +430,7 @@ impl AccessControlManager {
     /// Revoke device authorization
     pub async fn revoke_authorization(&self, device_id: &str) -> Result<()> {
         let mut authorized = self.authorized_devices.write().await;
-        
+
         if let Some(auth) = authorized.get_mut(device_id) {
             auth.active = false;
             tracing::info!("Authorization revoked for device: {}", device_id);
@@ -437,7 +444,7 @@ impl AccessControlManager {
     /// Requirement 5.6: Support unattended access mode with pre-authorization
     pub async fn enable_unattended_access(&self, password: &str) -> Result<()> {
         let mut reg = self.device_registration.write().await;
-        
+
         if let Some(registration) = reg.as_mut() {
             // In production, use proper password hashing (bcrypt, argon2, etc.)
             let hash = simple_hash(password);
@@ -453,7 +460,7 @@ impl AccessControlManager {
     /// Disable unattended access
     pub async fn disable_unattended_access(&self) -> Result<()> {
         let mut reg = self.device_registration.write().await;
-        
+
         if let Some(registration) = reg.as_mut() {
             registration.unattended_access_enabled = false;
             registration.unattended_password_hash = None;
@@ -467,7 +474,7 @@ impl AccessControlManager {
     /// Validate unattended access password
     pub async fn validate_unattended_password(&self, password: &str) -> bool {
         let reg = self.device_registration.read().await;
-        
+
         if let Some(registration) = reg.as_ref() {
             if registration.unattended_access_enabled {
                 if let Some(hash) = &registration.unattended_password_hash {
@@ -550,11 +557,11 @@ mod tests {
             code: "123456".to_string(),
             device_id: "test-device".to_string(),
             created_at: Instant::now() - Duration::from_secs(700), // 700 seconds ago
-            expires_in: Duration::from_secs(600), // 10 minutes
+            expires_in: Duration::from_secs(600),                  // 10 minutes
             permissions: vec![Permission::ViewScreen],
             used: false,
         };
-        
+
         assert!(code.is_expired());
         assert!(!code.is_valid());
     }
@@ -569,7 +576,7 @@ mod tests {
             permissions: vec![Permission::ViewScreen],
             used: false,
         };
-        
+
         assert!(!code.is_expired());
         assert!(code.is_valid());
     }
@@ -584,7 +591,7 @@ mod tests {
             permissions: vec![Permission::ViewScreen],
             used: true,
         };
-        
+
         assert!(!code.is_expired());
         assert!(!code.is_valid()); // Used codes are not valid
     }

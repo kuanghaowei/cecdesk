@@ -2,7 +2,7 @@
 //!
 //! Feature: cec-remote
 //! Task 11.1: 跨平台集成测试
-//! 
+//!
 //! Tests:
 //! - 平台间互操作性 (Platform interoperability)
 //! - 网络环境适应性 (Network environment adaptability)
@@ -13,14 +13,16 @@
 use proptest::prelude::*;
 use std::time::Instant;
 
-use crate::network::{NetworkManager, NetworkStats, NetworkQuality, ConnectionType, NetworkProtocol};
-use crate::screen_capture::{ScreenCapturer, QualityPreset, NetworkConditions};
 use crate::input_control::InputController;
+use crate::network::{
+    ConnectionType, NetworkManager, NetworkProtocol, NetworkQuality, NetworkStats,
+};
+use crate::screen_capture::{NetworkConditions, QualityPreset, ScreenCapturer};
 
 /// Performance thresholds based on requirements
-const MAX_INPUT_LATENCY_MS: u64 = 100;  // Requirement 7.1: 100ms max input latency
-const MIN_FRAME_RATE: u32 = 30;          // Requirement 6.3: 30-60 FPS
-const MAX_FRAME_RATE: u32 = 60;          // Requirement 6.3: 30-60 FPS
+const MAX_INPUT_LATENCY_MS: u64 = 100; // Requirement 7.1: 100ms max input latency
+const MIN_FRAME_RATE: u32 = 30; // Requirement 6.3: 30-60 FPS
+const MAX_FRAME_RATE: u32 = 60; // Requirement 6.3: 30-60 FPS
 const MAX_SIGNALING_TIME_MS: u64 = 5000; // Requirement 4.5: 5 seconds max signaling
 
 /// Platform types for cross-platform testing
@@ -140,45 +142,47 @@ pub async fn simulate_cross_platform_connection(
     target: Platform,
 ) -> ConnectionTestResult {
     let start = Instant::now();
-    
+
     // Simulate connection establishment
     let network_manager = NetworkManager::new();
     network_manager.initialize().await.unwrap();
-    
+
     // Simulate connection based on platform combination
     let connection_type = match (source, target) {
         // Desktop to desktop - usually direct connection
-        (Platform::Windows, Platform::Windows) |
-        (Platform::Windows, Platform::MacOS) |
-        (Platform::Windows, Platform::Linux) |
-        (Platform::MacOS, Platform::Windows) |
-        (Platform::MacOS, Platform::MacOS) |
-        (Platform::MacOS, Platform::Linux) |
-        (Platform::Linux, Platform::Windows) |
-        (Platform::Linux, Platform::MacOS) |
-        (Platform::Linux, Platform::Linux) => ConnectionType::Direct,
-        
+        (Platform::Windows, Platform::Windows)
+        | (Platform::Windows, Platform::MacOS)
+        | (Platform::Windows, Platform::Linux)
+        | (Platform::MacOS, Platform::Windows)
+        | (Platform::MacOS, Platform::MacOS)
+        | (Platform::MacOS, Platform::Linux)
+        | (Platform::Linux, Platform::Windows)
+        | (Platform::Linux, Platform::MacOS)
+        | (Platform::Linux, Platform::Linux) => ConnectionType::Direct,
+
         // Mobile to desktop or mobile to mobile - may need STUN
-        (Platform::IOS, _) | (Platform::Android, _) | (Platform::HarmonyOS, _) |
-        (_, Platform::IOS) | (_, Platform::Android) | (_, Platform::HarmonyOS) => {
-            ConnectionType::StunDirect
-        }
-        
+        (Platform::IOS, _)
+        | (Platform::Android, _)
+        | (Platform::HarmonyOS, _)
+        | (_, Platform::IOS)
+        | (_, Platform::Android)
+        | (_, Platform::HarmonyOS) => ConnectionType::StunDirect,
+
         // Web/MiniProgram - may need TURN relay
-        (Platform::Web, _) | (Platform::WeChatMiniProgram, _) |
-        (_, Platform::Web) | (_, Platform::WeChatMiniProgram) => {
-            ConnectionType::TurnRelay
-        }
+        (Platform::Web, _)
+        | (Platform::WeChatMiniProgram, _)
+        | (_, Platform::Web)
+        | (_, Platform::WeChatMiniProgram) => ConnectionType::TurnRelay,
     };
-    
+
     let protocol = if network_manager.is_ipv6_available().await {
         NetworkProtocol::IPv6
     } else {
         NetworkProtocol::IPv4
     };
-    
+
     let connection_time = start.elapsed().as_millis() as u64;
-    
+
     ConnectionTestResult {
         source_platform: source,
         target_platform: target,
@@ -193,14 +197,14 @@ pub async fn simulate_cross_platform_connection(
 pub async fn simulate_input_latency_test(platform: Platform) -> f64 {
     let controller = InputController::new();
     let mut latencies = Vec::new();
-    
+
     // Simulate 100 input events
     for _ in 0..100 {
         let start = Instant::now();
-        
+
         // Simulate sending input event
         let _ = controller.send_mouse_move(100, 100);
-        
+
         // Simulate network round-trip based on platform
         let base_latency = match platform {
             Platform::Windows | Platform::MacOS | Platform::Linux => 20,
@@ -208,13 +212,13 @@ pub async fn simulate_input_latency_test(platform: Platform) -> f64 {
             Platform::Web => 45,
             Platform::WeChatMiniProgram => 55,
         };
-        
+
         // Add some variance
         let variance = (start.elapsed().as_nanos() % 20) as u64;
         let latency = base_latency + variance;
         latencies.push(latency as f64);
     }
-    
+
     // Calculate average
     latencies.iter().sum::<f64>() / latencies.len() as f64
 }
@@ -222,7 +226,7 @@ pub async fn simulate_input_latency_test(platform: Platform) -> f64 {
 /// Simulate frame rate test
 pub async fn simulate_frame_rate_test(platform: Platform) -> f64 {
     let capturer = ScreenCapturer::new();
-    
+
     // Apply quality preset based on platform
     let preset = match platform {
         Platform::Windows | Platform::MacOS | Platform::Linux => QualityPreset::High,
@@ -230,22 +234,24 @@ pub async fn simulate_frame_rate_test(platform: Platform) -> f64 {
         Platform::Web => QualityPreset::Balanced,
         Platform::WeChatMiniProgram => QualityPreset::Low,
     };
-    
+
     capturer.apply_quality_preset(preset).await;
     let options = capturer.get_current_options().await;
-    
+
     options.frame_rate as f64
 }
 
 /// Check network adaptability
 pub async fn check_network_adaptability(conditions: NetworkConditions) -> bool {
     let capturer = ScreenCapturer::new();
-    
+
     // Apply network conditions
-    capturer.adapt_to_network_conditions(conditions.clone()).await;
-    
+    capturer
+        .adapt_to_network_conditions(conditions.clone())
+        .await;
+
     let options = capturer.get_current_options().await;
-    
+
     // Verify adaptation
     // Frame rate should be within valid range
     options.frame_rate >= 15 && options.frame_rate <= 60
@@ -262,14 +268,20 @@ mod tests {
     async fn test_cross_platform_functionality_consistency() {
         for platform in Platform::all() {
             let caps = PlatformCapabilities::for_platform(platform);
-            
+
             // All platforms should support basic functionality
-            assert!(caps.supports_file_transfer, 
-                "Platform {:?} should support file transfer", platform);
-            
+            assert!(
+                caps.supports_file_transfer,
+                "Platform {:?} should support file transfer",
+                platform
+            );
+
             // All platforms should have reasonable max resolution
-            assert!(caps.max_resolution.0 >= 1080 && caps.max_resolution.1 >= 720,
-                "Platform {:?} should support at least 720p", platform);
+            assert!(
+                caps.max_resolution.0 >= 1080 && caps.max_resolution.1 >= 720,
+                "Platform {:?} should support at least 720p",
+                platform
+            );
         }
     }
 
@@ -278,18 +290,26 @@ mod tests {
     #[tokio::test]
     async fn test_platform_interoperability() {
         let platforms = Platform::all();
-        
+
         for source in &platforms {
             for target in &platforms {
                 let result = simulate_cross_platform_connection(*source, *target).await;
-                
-                assert!(result.connection_established,
-                    "Connection from {:?} to {:?} should be established", source, target);
-                
+
+                assert!(
+                    result.connection_established,
+                    "Connection from {:?} to {:?} should be established",
+                    source, target
+                );
+
                 // Connection should be established within signaling time limit
-                assert!(result.connection_time_ms < MAX_SIGNALING_TIME_MS,
+                assert!(
+                    result.connection_time_ms < MAX_SIGNALING_TIME_MS,
                     "Connection from {:?} to {:?} took {}ms, exceeds {}ms limit",
-                    source, target, result.connection_time_ms, MAX_SIGNALING_TIME_MS);
+                    source,
+                    target,
+                    result.connection_time_ms,
+                    MAX_SIGNALING_TIME_MS
+                );
             }
         }
     }
@@ -301,10 +321,14 @@ mod tests {
     async fn test_input_latency_compliance() {
         for platform in Platform::all() {
             let avg_latency = simulate_input_latency_test(platform).await;
-            
-            assert!(avg_latency <= MAX_INPUT_LATENCY_MS as f64,
+
+            assert!(
+                avg_latency <= MAX_INPUT_LATENCY_MS as f64,
                 "Platform {:?} average input latency {:.2}ms exceeds {}ms limit",
-                platform, avg_latency, MAX_INPUT_LATENCY_MS);
+                platform,
+                avg_latency,
+                MAX_INPUT_LATENCY_MS
+            );
         }
     }
 
@@ -315,13 +339,22 @@ mod tests {
     async fn test_frame_rate_compliance() {
         for platform in Platform::all() {
             let frame_rate = simulate_frame_rate_test(platform).await;
-            
+
             // WeChat MiniProgram has lower frame rate due to platform limitations (Requirement 15.6)
-            let min_fps = if platform == Platform::WeChatMiniProgram { 15.0 } else { MIN_FRAME_RATE as f64 };
-            
-            assert!(frame_rate >= min_fps && frame_rate <= MAX_FRAME_RATE as f64,
+            let min_fps = if platform == Platform::WeChatMiniProgram {
+                15.0
+            } else {
+                MIN_FRAME_RATE as f64
+            };
+
+            assert!(
+                frame_rate >= min_fps && frame_rate <= MAX_FRAME_RATE as f64,
                 "Platform {:?} frame rate {:.0}fps outside {:.0}-{} range",
-                platform, frame_rate, min_fps, MAX_FRAME_RATE);
+                platform,
+                frame_rate,
+                min_fps,
+                MAX_FRAME_RATE
+            );
         }
     }
 
@@ -332,17 +365,37 @@ mod tests {
     async fn test_network_adaptability() {
         // Test various network conditions
         let conditions = vec![
-            NetworkConditions { available_bandwidth: 10000, packet_loss: 0.5, rtt: 30 },  // Excellent
-            NetworkConditions { available_bandwidth: 5000, packet_loss: 2.0, rtt: 80 },   // Good
-            NetworkConditions { available_bandwidth: 2000, packet_loss: 4.0, rtt: 150 },  // Fair
-            NetworkConditions { available_bandwidth: 500, packet_loss: 8.0, rtt: 300 },   // Poor
+            NetworkConditions {
+                available_bandwidth: 10000,
+                packet_loss: 0.5,
+                rtt: 30,
+            }, // Excellent
+            NetworkConditions {
+                available_bandwidth: 5000,
+                packet_loss: 2.0,
+                rtt: 80,
+            }, // Good
+            NetworkConditions {
+                available_bandwidth: 2000,
+                packet_loss: 4.0,
+                rtt: 150,
+            }, // Fair
+            NetworkConditions {
+                available_bandwidth: 500,
+                packet_loss: 8.0,
+                rtt: 300,
+            }, // Poor
         ];
-        
+
         for condition in conditions {
             let adapted = check_network_adaptability(condition.clone()).await;
-            assert!(adapted, 
+            assert!(
+                adapted,
                 "System should adapt to network conditions: bandwidth={}kbps, loss={:.1}%, rtt={}ms",
-                condition.available_bandwidth, condition.packet_loss, condition.rtt);
+                condition.available_bandwidth,
+                condition.packet_loss,
+                condition.rtt
+            );
         }
     }
 
@@ -351,17 +404,45 @@ mod tests {
     #[tokio::test]
     async fn test_network_quality_consistency() {
         // Test quality boundaries
-        let excellent = NetworkStats { rtt: 30, packet_loss: 0.5, ..Default::default() };
-        assert_eq!(NetworkManager::calculate_quality(&excellent), NetworkQuality::Excellent);
-        
-        let good = NetworkStats { rtt: 80, packet_loss: 2.0, ..Default::default() };
-        assert_eq!(NetworkManager::calculate_quality(&good), NetworkQuality::Good);
-        
-        let fair = NetworkStats { rtt: 150, packet_loss: 4.0, ..Default::default() };
-        assert_eq!(NetworkManager::calculate_quality(&fair), NetworkQuality::Fair);
-        
-        let poor = NetworkStats { rtt: 250, packet_loss: 8.0, ..Default::default() };
-        assert_eq!(NetworkManager::calculate_quality(&poor), NetworkQuality::Poor);
+        let excellent = NetworkStats {
+            rtt: 30,
+            packet_loss: 0.5,
+            ..Default::default()
+        };
+        assert_eq!(
+            NetworkManager::calculate_quality(&excellent),
+            NetworkQuality::Excellent
+        );
+
+        let good = NetworkStats {
+            rtt: 80,
+            packet_loss: 2.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            NetworkManager::calculate_quality(&good),
+            NetworkQuality::Good
+        );
+
+        let fair = NetworkStats {
+            rtt: 150,
+            packet_loss: 4.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            NetworkManager::calculate_quality(&fair),
+            NetworkQuality::Fair
+        );
+
+        let poor = NetworkStats {
+            rtt: 250,
+            packet_loss: 8.0,
+            ..Default::default()
+        };
+        assert_eq!(
+            NetworkManager::calculate_quality(&poor),
+            NetworkQuality::Poor
+        );
     }
 
     /// Test: Desktop platforms support multi-display
@@ -370,8 +451,11 @@ mod tests {
     async fn test_desktop_multi_display_support() {
         for platform in Platform::desktop() {
             let caps = PlatformCapabilities::for_platform(platform);
-            assert!(caps.supports_multi_display,
-                "Desktop platform {:?} should support multi-display", platform);
+            assert!(
+                caps.supports_multi_display,
+                "Desktop platform {:?} should support multi-display",
+                platform
+            );
         }
     }
 
@@ -381,8 +465,11 @@ mod tests {
     async fn test_mobile_touch_support() {
         for platform in Platform::mobile() {
             let caps = PlatformCapabilities::for_platform(platform);
-            assert!(caps.supports_touch_input,
-                "Mobile platform {:?} should support touch input", platform);
+            assert!(
+                caps.supports_touch_input,
+                "Mobile platform {:?} should support touch input",
+                platform
+            );
         }
     }
 
@@ -392,15 +479,22 @@ mod tests {
     async fn test_hardware_acceleration_availability() {
         // Desktop and mobile platforms should support hardware acceleration
         let hw_platforms = vec![
-            Platform::Windows, Platform::MacOS, Platform::Linux,
-            Platform::IOS, Platform::Android, Platform::HarmonyOS,
+            Platform::Windows,
+            Platform::MacOS,
+            Platform::Linux,
+            Platform::IOS,
+            Platform::Android,
+            Platform::HarmonyOS,
             Platform::Web,
         ];
-        
+
         for platform in hw_platforms {
             let caps = PlatformCapabilities::for_platform(platform);
-            assert!(caps.supports_hardware_acceleration,
-                "Platform {:?} should support hardware acceleration", platform);
+            assert!(
+                caps.supports_hardware_acceleration,
+                "Platform {:?} should support hardware acceleration",
+                platform
+            );
         }
     }
 }
@@ -436,7 +530,7 @@ mod property_tests {
                 let capturer = ScreenCapturer::new();
                 capturer.adapt_to_network_conditions(conditions).await;
                 let options = capturer.get_current_options().await;
-                
+
                 // Frame rate should always be within valid range
                 assert!(options.frame_rate >= 15 && options.frame_rate <= 60,
                     "Frame rate {} outside valid range 15-60", options.frame_rate);
@@ -455,10 +549,10 @@ mod property_tests {
                 packet_loss,
                 ..Default::default()
             };
-            
+
             let quality1 = NetworkManager::calculate_quality(&stats);
             let quality2 = NetworkManager::calculate_quality(&stats);
-            
+
             prop_assert_eq!(quality1, quality2,
                 "Quality calculation should be deterministic");
         }

@@ -10,7 +10,7 @@ pub struct TransferProgress {
     pub filename: String,
     pub total_size: u64,
     pub transferred_size: u64,
-    pub speed: u64, // bytes per second
+    pub speed: u64,          // bytes per second
     pub estimated_time: u64, // seconds remaining
     pub status: TransferStatus,
 }
@@ -56,7 +56,8 @@ impl FileTransfer {
         }
 
         let transfer_id = Uuid::new_v4().to_string();
-        let filename = file_path.file_name()
+        let filename = file_path
+            .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or("unknown")
             .to_string();
@@ -72,14 +73,26 @@ impl FileTransfer {
         };
 
         self.active_transfers.insert(transfer_id.clone(), progress);
-        
-        tracing::info!("Starting file transfer: {} to {}", file_path.display(), target_id);
+
+        tracing::info!(
+            "Starting file transfer: {} to {}",
+            file_path.display(),
+            target_id
+        );
         Ok(transfer_id)
     }
 
-    pub async fn receive_file(&mut self, transfer_id: String, save_path: PathBuf) -> Result<TransferResult> {
-        tracing::info!("Receiving file for transfer: {} to {}", transfer_id, save_path.display());
-        
+    pub async fn receive_file(
+        &mut self,
+        transfer_id: String,
+        save_path: PathBuf,
+    ) -> Result<TransferResult> {
+        tracing::info!(
+            "Receiving file for transfer: {} to {}",
+            transfer_id,
+            save_path.display()
+        );
+
         // Placeholder implementation
         let result = TransferResult {
             transfer_id: transfer_id.clone(),
@@ -129,8 +142,11 @@ impl FileTransfer {
 
     pub async fn resume_from_breakpoint(&mut self, transfer_id: &str) -> Result<()> {
         if let Some(progress) = self.active_transfers.get_mut(transfer_id) {
-            tracing::info!("Resuming transfer from breakpoint: {} at {} bytes", 
-                transfer_id, progress.transferred_size);
+            tracing::info!(
+                "Resuming transfer from breakpoint: {} at {} bytes",
+                transfer_id,
+                progress.transferred_size
+            );
             progress.status = TransferStatus::InProgress;
             Ok(())
         } else {

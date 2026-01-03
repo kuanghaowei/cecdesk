@@ -1,5 +1,5 @@
 //! Property-based tests for logging module
-//! 
+//!
 //! Feature: cec-remote, Property 13: Connection Event Logging
 //! Validates: Requirements 14.1
 
@@ -67,7 +67,7 @@ fn arb_message() -> impl Strategy<Value = String> {
 proptest! {
     /// **Feature: cec-remote, Property 13: Connection Event Logging**
     /// **Validates: Requirements 14.1**
-    /// 
+    ///
     /// For any connection establishment or disconnection event,
     /// the system should record the connection event and related information.
     #[test]
@@ -78,7 +78,7 @@ proptest! {
         success in any::<bool>(),
     ) {
         let manager = LogManager::default();
-        
+
         // Create a connection event
         let mut event = ConnectionEvent::new(event_type.clone());
         if let Some(ref sid) = session_id {
@@ -90,52 +90,52 @@ proptest! {
         if !success {
             event = event.with_error("Test error");
         }
-        
+
         // Log the connection event
         manager.log_connection_event(event.clone());
-        
+
         // Verify the event was recorded
         let events = manager.get_connection_events(None);
         prop_assert!(!events.is_empty(), "Connection event should be recorded");
-        
+
         let recorded_event = &events[0];
-        
+
         // Verify event type matches
         prop_assert_eq!(
             std::mem::discriminant(&recorded_event.event_type),
             std::mem::discriminant(&event_type),
             "Event type should match"
         );
-        
+
         // Verify session ID matches
         prop_assert_eq!(
             &recorded_event.session_id,
             &session_id,
             "Session ID should match"
         );
-        
+
         // Verify device ID matches
         prop_assert_eq!(
             &recorded_event.remote_device_id,
             &device_id,
             "Device ID should match"
         );
-        
+
         // Verify success status matches
         prop_assert_eq!(
             recorded_event.success,
             success,
             "Success status should match"
         );
-        
+
         // Verify the event was also logged as a regular log entry
         let logs = manager.get_logs(None, None);
         prop_assert!(!logs.is_empty(), "Connection event should also create a log entry");
-        
+
         // Verify the log entry contains the event information
         let log_entry = &logs[0];
         prop_assert_eq!(&log_entry.category, "Connection", "Log category should be 'Connection'");
-        
+
         // Verify session ID is in log entry if provided
         if session_id.is_some() {
             prop_assert_eq!(
@@ -144,7 +144,7 @@ proptest! {
                 "Log entry should contain session ID"
             );
         }
-        
+
         // Verify device ID is in log entry if provided
         if device_id.is_some() {
             prop_assert_eq!(
@@ -170,7 +170,7 @@ proptest! {
             ..Default::default()
         };
         let manager = LogManager::new(config);
-        
+
         // Create and log an entry
         let mut entry = LogEntry::new(level, &category, &message);
         if let Some(ref sid) = session_id {
@@ -179,13 +179,13 @@ proptest! {
         if let Some(ref did) = device_id {
             entry = entry.with_device(did);
         }
-        
+
         manager.log(entry);
-        
+
         // Retrieve and verify
         let logs = manager.get_logs(None, None);
         prop_assert!(!logs.is_empty(), "Log entry should be recorded");
-        
+
         let recorded = &logs[0];
         prop_assert_eq!(recorded.level, level, "Level should be preserved");
         prop_assert_eq!(&recorded.category, &category, "Category should be preserved");
@@ -207,14 +207,14 @@ proptest! {
             ..Default::default()
         };
         let manager = LogManager::new(config);
-        
+
         // Log an entry
         let entry = LogEntry::new(log_level, "Test", &message);
         manager.log(entry);
-        
+
         // Get logs filtered by level
         let logs = manager.get_logs(Some(min_level), None);
-        
+
         // If log level is below min level, it should not appear in filtered results
         if log_level < min_level {
             prop_assert!(
@@ -237,7 +237,7 @@ proptest! {
         event_types in prop::collection::vec(arb_connection_event_type(), 2..10),
     ) {
         let manager = LogManager::default();
-        
+
         // Log multiple events
         for event_type in &event_types {
             let event = ConnectionEvent::new(event_type.clone());
@@ -245,17 +245,17 @@ proptest! {
             // Small delay to ensure different timestamps
             std::thread::sleep(std::time::Duration::from_millis(1));
         }
-        
+
         // Get all events
         let events = manager.get_connection_events(None);
-        
+
         // Verify count
         prop_assert_eq!(
             events.len(),
             event_types.len(),
             "All events should be recorded"
         );
-        
+
         // Verify ordering (most recent first)
         for i in 0..events.len() - 1 {
             prop_assert!(
@@ -272,15 +272,15 @@ proptest! {
         messages in prop::collection::vec(arb_message(), 1..20),
     ) {
         let manager = LogManager::default();
-        
+
         // Log multiple entries
         for message in &messages {
             manager.info("Test", message);
         }
-        
+
         // Export logs
         let export = manager.export_logs();
-        
+
         // Verify all messages are in the export
         for message in &messages {
             prop_assert!(
@@ -299,16 +299,19 @@ mod tests {
     #[test]
     fn test_connection_established_event_logged() {
         let manager = LogManager::default();
-        
+
         let event = ConnectionEvent::new(ConnectionEventType::ConnectionEstablished)
             .with_session("session-123")
             .with_remote_device("device-456");
-        
+
         manager.log_connection_event(event);
-        
+
         let events = manager.get_connection_events(None);
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0].event_type, ConnectionEventType::ConnectionEstablished));
+        assert!(matches!(
+            events[0].event_type,
+            ConnectionEventType::ConnectionEstablished
+        ));
         assert_eq!(events[0].session_id, Some("session-123".to_string()));
         assert_eq!(events[0].remote_device_id, Some("device-456".to_string()));
         assert!(events[0].success);
@@ -318,54 +321,61 @@ mod tests {
     #[test]
     fn test_connection_failed_event_logged() {
         let manager = LogManager::default();
-        
+
         let event = ConnectionEvent::new(ConnectionEventType::ConnectionFailed)
             .with_session("session-123")
             .with_error("Connection timeout");
-        
+
         manager.log_connection_event(event);
-        
+
         let events = manager.get_connection_events(None);
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0].event_type, ConnectionEventType::ConnectionFailed));
+        assert!(matches!(
+            events[0].event_type,
+            ConnectionEventType::ConnectionFailed
+        ));
         assert!(!events[0].success);
-        assert_eq!(events[0].error_message, Some("Connection timeout".to_string()));
+        assert_eq!(
+            events[0].error_message,
+            Some("Connection timeout".to_string())
+        );
     }
 
     /// Unit test: Connection closed event is logged correctly
     #[test]
     fn test_connection_closed_event_logged() {
         let manager = LogManager::default();
-        
+
         let event = ConnectionEvent::new(ConnectionEventType::ConnectionClosed)
             .with_session("session-123")
             .with_remote_device("device-456");
-        
+
         manager.log_connection_event(event);
-        
+
         let events = manager.get_connection_events(None);
         assert_eq!(events.len(), 1);
-        assert!(matches!(events[0].event_type, ConnectionEventType::ConnectionClosed));
+        assert!(matches!(
+            events[0].event_type,
+            ConnectionEventType::ConnectionClosed
+        ));
     }
 
     /// Unit test: Multiple connection events are recorded
     #[test]
     fn test_multiple_connection_events() {
         let manager = LogManager::default();
-        
+
         manager.log_connection_event(
-            ConnectionEvent::new(ConnectionEventType::ConnectionAttempt)
-                .with_session("session-1")
+            ConnectionEvent::new(ConnectionEventType::ConnectionAttempt).with_session("session-1"),
         );
         manager.log_connection_event(
             ConnectionEvent::new(ConnectionEventType::ConnectionEstablished)
-                .with_session("session-1")
+                .with_session("session-1"),
         );
         manager.log_connection_event(
-            ConnectionEvent::new(ConnectionEventType::ConnectionClosed)
-                .with_session("session-1")
+            ConnectionEvent::new(ConnectionEventType::ConnectionClosed).with_session("session-1"),
         );
-        
+
         let events = manager.get_connection_events(None);
         assert_eq!(events.len(), 3);
     }
@@ -374,12 +384,12 @@ mod tests {
     #[test]
     fn test_connection_events_create_log_entries() {
         let manager = LogManager::default();
-        
+
         let event = ConnectionEvent::new(ConnectionEventType::ConnectionEstablished)
             .with_session("session-123");
-        
+
         manager.log_connection_event(event);
-        
+
         let logs = manager.get_logs(None, None);
         assert!(!logs.is_empty());
         assert_eq!(logs[0].category, "Connection");

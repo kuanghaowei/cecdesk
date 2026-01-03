@@ -72,7 +72,6 @@ pub enum FrameFormat {
     I420,
 }
 
-
 #[derive(Debug, Clone)]
 pub struct AudioFrame {
     pub id: u64,
@@ -141,7 +140,6 @@ pub struct ScreenCapturer {
     frame_counter: Arc<Mutex<u64>>,
     adaptive_config: Arc<RwLock<AdaptiveBitrateConfig>>,
 }
-
 
 impl ScreenCapturer {
     pub fn new() -> Self {
@@ -224,14 +222,18 @@ impl ScreenCapturer {
         }])
     }
 
-    pub async fn start_capture(&mut self, display_id: String, options: CaptureOptions) -> Result<mpsc::UnboundedReceiver<VideoFrame>> {
+    pub async fn start_capture(
+        &mut self,
+        display_id: String,
+        options: CaptureOptions,
+    ) -> Result<mpsc::UnboundedReceiver<VideoFrame>> {
         let (sender, receiver) = mpsc::unbounded_channel();
-        
+
         self.current_display = Some(display_id.clone());
         *self.capture_options.write().await = options.clone();
         self.frame_sender = Some(sender);
         *self.is_capturing.write().await = true;
-        
+
         tracing::info!(
             "Starting screen capture for display: {} at {}x{} {}fps",
             display_id,
@@ -239,10 +241,10 @@ impl ScreenCapturer {
             options.height,
             options.frame_rate
         );
-        
+
         // Start capture loop in background
         self.start_capture_loop().await?;
-        
+
         Ok(receiver)
     }
 
@@ -251,18 +253,19 @@ impl ScreenCapturer {
         let capture_options = Arc::clone(&self.capture_options);
         let frame_counter = Arc::clone(&self.frame_counter);
         let frame_sender = self.frame_sender.clone();
-        
+
         tokio::spawn(async move {
             while *is_capturing.read().await {
                 let options = capture_options.read().await;
-                let frame_interval = std::time::Duration::from_millis(1000 / options.frame_rate as u64);
+                let frame_interval =
+                    std::time::Duration::from_millis(1000 / options.frame_rate as u64);
                 drop(options);
-                
+
                 // Capture frame (placeholder - actual implementation would use platform APIs)
                 if let Some(sender) = &frame_sender {
                     let mut counter = frame_counter.lock().await;
                     *counter += 1;
-                    
+
                     let frame = VideoFrame {
                         id: *counter,
                         timestamp: std::time::SystemTime::now()
@@ -274,24 +277,24 @@ impl ScreenCapturer {
                         data: vec![], // Placeholder - actual frame data
                         format: FrameFormat::RGBA,
                     };
-                    
+
                     let _ = sender.send(frame);
                 }
-                
+
                 tokio::time::sleep(frame_interval).await;
             }
         });
-        
+
         Ok(())
     }
 
     pub async fn stop_capture(&mut self) {
         *self.is_capturing.write().await = false;
-        
+
         if let Some(display_id) = &self.current_display {
             tracing::info!("Stopping screen capture for display: {}", display_id);
         }
-        
+
         self.current_display = None;
         self.frame_sender = None;
     }
@@ -330,7 +333,11 @@ impl ScreenCapturer {
         options.enable_hardware_acceleration = enable && self.hardware_acceleration_available;
         tracing::info!(
             "Hardware acceleration: {}",
-            if options.enable_hardware_acceleration { "enabled" } else { "disabled" }
+            if options.enable_hardware_acceleration {
+                "enabled"
+            } else {
+                "disabled"
+            }
         );
     }
 
@@ -364,7 +371,7 @@ impl ScreenCapturer {
     pub async fn apply_quality_preset(&self, preset: QualityPreset) {
         let mut options = self.capture_options.write().await;
         options.quality_preset = preset;
-        
+
         match preset {
             QualityPreset::Low => {
                 options.width = 1280;
@@ -390,7 +397,7 @@ impl ScreenCapturer {
                 options.bitrate = 15000;
             }
         }
-        
+
         tracing::info!("Applied quality preset: {:?}", preset);
     }
 
@@ -398,11 +405,11 @@ impl ScreenCapturer {
     pub async fn adapt_to_network_conditions(&self, conditions: NetworkConditions) {
         let mut options = self.capture_options.write().await;
         let config = self.adaptive_config.read().await;
-        
+
         // Calculate target bitrate based on available bandwidth
         let target_bitrate = (conditions.available_bandwidth as f32 * 0.8) as u32;
         let new_bitrate = target_bitrate.clamp(config.min_bitrate, config.max_bitrate);
-        
+
         // Adjust frame rate based on packet loss and RTT
         let frame_rate_factor = if conditions.packet_loss > 5.0 || conditions.rtt > 150 {
             0.7
@@ -411,16 +418,16 @@ impl ScreenCapturer {
         } else {
             1.0
         };
-        
+
         let new_frame_rate = ((config.target_frame_rate as f32 * frame_rate_factor) as u32)
             .clamp(config.min_frame_rate, config.max_frame_rate);
-        
+
         // Apply changes if significant
         if (options.bitrate as i32 - new_bitrate as i32).abs() > 200 {
             options.bitrate = new_bitrate;
             tracing::info!("Adaptive bitrate adjustment: {} kbps", new_bitrate);
         }
-        
+
         if options.frame_rate != new_frame_rate {
             options.frame_rate = new_frame_rate;
             tracing::info!("Adaptive frame rate adjustment: {} fps", new_frame_rate);
@@ -435,7 +442,6 @@ impl ScreenCapturer {
         *self.is_capturing.read().await
     }
 }
-
 
 pub struct AudioCapturer {
     id: String,
@@ -456,22 +462,25 @@ impl AudioCapturer {
         }
     }
 
-    pub async fn start_capture(&mut self, options: AudioCaptureOptions) -> Result<mpsc::UnboundedReceiver<AudioFrame>> {
+    pub async fn start_capture(
+        &mut self,
+        options: AudioCaptureOptions,
+    ) -> Result<mpsc::UnboundedReceiver<AudioFrame>> {
         let (sender, receiver) = mpsc::unbounded_channel();
-        
+
         *self.capture_options.write().await = options.clone();
         self.frame_sender = Some(sender);
         *self.is_capturing.write().await = true;
-        
+
         tracing::info!(
             "Starting audio capture at {} Hz, {} channels",
             options.sample_rate,
             options.channels
         );
-        
+
         // Start capture loop in background
         self.start_capture_loop().await?;
-        
+
         Ok(receiver)
     }
 
@@ -480,7 +489,7 @@ impl AudioCapturer {
         let capture_options = Arc::clone(&self.capture_options);
         let frame_counter = Arc::clone(&self.frame_counter);
         let frame_sender = self.frame_sender.clone();
-        
+
         tokio::spawn(async move {
             while *is_capturing.read().await {
                 let options = capture_options.read().await;
@@ -489,11 +498,11 @@ impl AudioCapturer {
                 let sample_rate = options.sample_rate;
                 let channels = options.channels;
                 drop(options);
-                
+
                 if let Some(sender) = &frame_sender {
                     let mut counter = frame_counter.lock().await;
                     *counter += 1;
-                    
+
                     let frame = AudioFrame {
                         id: *counter,
                         timestamp: std::time::SystemTime::now()
@@ -504,14 +513,14 @@ impl AudioCapturer {
                         channels,
                         data: vec![], // Placeholder - actual audio data
                     };
-                    
+
                     let _ = sender.send(frame);
                 }
-                
+
                 tokio::time::sleep(frame_interval).await;
             }
         });
-        
+
         Ok(())
     }
 
@@ -530,13 +539,19 @@ impl AudioCapturer {
     pub async fn enable_noise_suppression(&self, enable: bool) {
         let mut options = self.capture_options.write().await;
         options.enable_noise_suppression = enable;
-        tracing::info!("Noise suppression: {}", if enable { "enabled" } else { "disabled" });
+        tracing::info!(
+            "Noise suppression: {}",
+            if enable { "enabled" } else { "disabled" }
+        );
     }
 
     pub async fn enable_echo_cancellation(&self, enable: bool) {
         let mut options = self.capture_options.write().await;
         options.enable_echo_cancellation = enable;
-        tracing::info!("Echo cancellation: {}", if enable { "enabled" } else { "disabled" });
+        tracing::info!(
+            "Echo cancellation: {}",
+            if enable { "enabled" } else { "disabled" }
+        );
     }
 
     pub async fn get_current_options(&self) -> AudioCaptureOptions {
@@ -561,13 +576,13 @@ mod tests {
     #[tokio::test]
     async fn test_quality_preset_application() {
         let capturer = ScreenCapturer::new();
-        
+
         capturer.apply_quality_preset(QualityPreset::Low).await;
         let options = capturer.get_current_options().await;
         assert_eq!(options.width, 1280);
         assert_eq!(options.height, 720);
         assert_eq!(options.frame_rate, 15);
-        
+
         capturer.apply_quality_preset(QualityPreset::High).await;
         let options = capturer.get_current_options().await;
         assert_eq!(options.width, 1920);
@@ -578,7 +593,7 @@ mod tests {
     #[tokio::test]
     async fn test_adaptive_bitrate() {
         let capturer = ScreenCapturer::new();
-        
+
         // Simulate good network conditions
         let good_conditions = NetworkConditions {
             available_bandwidth: 10000,
@@ -586,7 +601,7 @@ mod tests {
             rtt: 50,
         };
         capturer.adapt_to_network_conditions(good_conditions).await;
-        
+
         // Simulate poor network conditions
         let poor_conditions = NetworkConditions {
             available_bandwidth: 2000,
@@ -594,7 +609,7 @@ mod tests {
             rtt: 200,
         };
         capturer.adapt_to_network_conditions(poor_conditions).await;
-        
+
         let options = capturer.get_current_options().await;
         assert!(options.bitrate <= 2000);
     }

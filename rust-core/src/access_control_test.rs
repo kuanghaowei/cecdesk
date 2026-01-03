@@ -1,14 +1,14 @@
 //! Property-based tests for Access Control
-//! 
+//!
 //! Feature: cec-remote
 //! Property 7: 访问码过期机制 - Access codes should expire after 10 minutes
 //! Validates: Requirements 5.7
 
-use proptest::prelude::*;
-use std::time::{Duration, Instant};
 use crate::access_control::{
     AccessCode, AccessControlManager, Permission, ACCESS_CODE_EXPIRATION_SECS,
 };
+use proptest::prelude::*;
+use std::time::{Duration, Instant};
 
 /// Strategy for generating random permissions
 fn permission_strategy() -> impl Strategy<Value = Permission> {
@@ -45,7 +45,7 @@ proptest! {
     ) {
         // Create an access code with a specific elapsed time
         let created_at = Instant::now() - Duration::from_secs(elapsed_secs);
-        
+
         let code = AccessCode {
             code: "123456".to_string(),
             device_id: "test-device".to_string(),
@@ -54,7 +54,7 @@ proptest! {
             permissions,
             used: false,
         };
-        
+
         // Property: code is expired if and only if elapsed time >= 600 seconds
         let expected_expired = elapsed_secs >= ACCESS_CODE_EXPIRATION_SECS;
         prop_assert_eq!(code.is_expired(), expected_expired,
@@ -71,7 +71,7 @@ proptest! {
         permissions in permissions_list_strategy()
     ) {
         let created_at = Instant::now() - Duration::from_secs(elapsed_secs);
-        
+
         let code = AccessCode {
             code: "123456".to_string(),
             device_id: "test-device".to_string(),
@@ -80,9 +80,9 @@ proptest! {
             permissions,
             used: false,
         };
-        
+
         let remaining = code.remaining_seconds();
-        
+
         if elapsed_secs >= ACCESS_CODE_EXPIRATION_SECS {
             // Should be 0 if expired
             prop_assert_eq!(remaining, 0,
@@ -106,7 +106,7 @@ proptest! {
         permissions in permissions_list_strategy()
     ) {
         let created_at = Instant::now() - Duration::from_secs(elapsed_secs);
-        
+
         let code = AccessCode {
             code: "123456".to_string(),
             device_id: "test-device".to_string(),
@@ -115,10 +115,10 @@ proptest! {
             permissions,
             used,
         };
-        
+
         let is_expired = elapsed_secs >= ACCESS_CODE_EXPIRATION_SECS;
         let expected_valid = !is_expired && !used;
-        
+
         prop_assert_eq!(code.is_valid(), expected_valid,
             "Validity mismatch: expired={}, used={}, expected_valid={}, actual_valid={}",
             is_expired, used, expected_valid, code.is_valid());
@@ -130,15 +130,15 @@ proptest! {
     #[test]
     fn prop_device_id_uniqueness_from_manager(count in 10usize..50) {
         use std::collections::HashSet;
-        
+
         let mut ids = HashSet::new();
-        
+
         for _ in 0..count {
             let id = AccessControlManager::generate_device_id();
             prop_assert!(ids.insert(id.clone()),
                 "Generated duplicate device ID: {}", id);
         }
-        
+
         prop_assert_eq!(ids.len(), count);
     }
 
@@ -165,7 +165,7 @@ proptest! {
             permissions,
             used: false,
         };
-        
+
         prop_assert!(!code.is_expired(),
             "Newly created access code should not be expired");
         prop_assert!(code.is_valid(),
@@ -183,7 +183,7 @@ proptest! {
         // Create code that is (600 + extra_secs) seconds old
         let elapsed = ACCESS_CODE_EXPIRATION_SECS + extra_secs;
         let created_at = Instant::now() - Duration::from_secs(elapsed);
-        
+
         let code = AccessCode {
             code: "123456".to_string(),
             device_id: "test-device".to_string(),
@@ -192,7 +192,7 @@ proptest! {
             permissions,
             used: false,
         };
-        
+
         prop_assert!(code.is_expired(),
             "Access code created {} seconds ago should be expired", elapsed);
         prop_assert!(!code.is_valid(),
@@ -226,7 +226,7 @@ mod unit_tests {
             permissions: vec![Permission::ViewScreen],
             used: false,
         };
-        
+
         // At exactly 600 seconds, it should be expired
         assert!(code.is_expired());
     }
@@ -242,7 +242,7 @@ mod unit_tests {
             permissions: vec![Permission::ViewScreen],
             used: false,
         };
-        
+
         // At 599 seconds, it should not be expired yet
         assert!(!code.is_expired());
         assert!(code.is_valid());
@@ -251,16 +251,19 @@ mod unit_tests {
     #[tokio::test]
     async fn test_access_control_manager_register_device() {
         let manager = AccessControlManager::new();
-        
-        let device_id = manager.register_device(
-            "Test Device".to_string(),
-            "linux".to_string(),
-            "1.0.0".to_string(),
-        ).await.unwrap();
-        
+
+        let device_id = manager
+            .register_device(
+                "Test Device".to_string(),
+                "linux".to_string(),
+                "1.0.0".to_string(),
+            )
+            .await
+            .unwrap();
+
         assert!(!device_id.is_empty());
         assert_eq!(device_id.len(), 36); // UUID format
-        
+
         let stored_id = manager.get_device_id().await;
         assert_eq!(stored_id, Some(device_id));
     }
@@ -268,19 +271,23 @@ mod unit_tests {
     #[tokio::test]
     async fn test_access_control_manager_generate_access_code() {
         let manager = AccessControlManager::new();
-        
+
         // Register device first
-        manager.register_device(
-            "Test Device".to_string(),
-            "linux".to_string(),
-            "1.0.0".to_string(),
-        ).await.unwrap();
-        
-        // Generate access code
-        let code = manager.generate_access_code(vec![Permission::ViewScreen])
+        manager
+            .register_device(
+                "Test Device".to_string(),
+                "linux".to_string(),
+                "1.0.0".to_string(),
+            )
             .await
             .unwrap();
-        
+
+        // Generate access code
+        let code = manager
+            .generate_access_code(vec![Permission::ViewScreen])
+            .await
+            .unwrap();
+
         assert!(!code.code.is_empty());
         assert!(code.is_valid());
         assert!(!code.is_expired());
@@ -289,23 +296,27 @@ mod unit_tests {
     #[tokio::test]
     async fn test_access_control_manager_validate_access_code() {
         let manager = AccessControlManager::new();
-        
+
         // Register device first
-        manager.register_device(
-            "Test Device".to_string(),
-            "linux".to_string(),
-            "1.0.0".to_string(),
-        ).await.unwrap();
-        
-        // Generate access code
-        let code = manager.generate_access_code(vec![Permission::ViewScreen])
+        manager
+            .register_device(
+                "Test Device".to_string(),
+                "linux".to_string(),
+                "1.0.0".to_string(),
+            )
             .await
             .unwrap();
-        
+
+        // Generate access code
+        let code = manager
+            .generate_access_code(vec![Permission::ViewScreen])
+            .await
+            .unwrap();
+
         // Validate the code
         let validated = manager.validate_access_code(&code.code).await.unwrap();
         assert!(validated.is_some());
-        
+
         // Invalid code should return None
         let invalid = manager.validate_access_code("000000").await.unwrap();
         assert!(invalid.is_none());

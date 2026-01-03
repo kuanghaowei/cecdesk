@@ -1,5 +1,5 @@
 //! Rust bridge for Flutter client
-//! 
+//!
 //! This crate provides FFI bindings between the Rust core engine
 //! and the Flutter client application.
 

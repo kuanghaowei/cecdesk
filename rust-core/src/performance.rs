@@ -87,7 +87,7 @@ impl BufferPool {
     /// Acquire a buffer from the pool or allocate a new one
     pub async fn acquire(&self) -> Vec<u8> {
         let mut buffers = self.buffers.write().await;
-        
+
         if let Some(mut buffer) = buffers.pop_front() {
             buffer.clear();
             self.reused_count.fetch_add(1, Ordering::Relaxed);
@@ -101,7 +101,7 @@ impl BufferPool {
     /// Return a buffer to the pool for reuse
     pub async fn release(&self, buffer: Vec<u8>) {
         let mut buffers = self.buffers.write().await;
-        
+
         if buffers.len() < self.max_buffers {
             buffers.push_back(buffer);
         }
@@ -158,15 +158,16 @@ impl FrameBufferManager {
     pub async fn push_frame(&self, frame: FrameBuffer) {
         let frame_size = frame.data.len() as u64;
         let mut buffers = self.buffers.write().await;
-        
+
         // Drop oldest frame if buffer is full
         if buffers.len() >= self.max_buffers {
             if let Some(old_frame) = buffers.pop_front() {
-                self.total_bytes.fetch_sub(old_frame.data.len() as u64, Ordering::Relaxed);
+                self.total_bytes
+                    .fetch_sub(old_frame.data.len() as u64, Ordering::Relaxed);
                 self.dropped_frames.fetch_add(1, Ordering::Relaxed);
             }
         }
-        
+
         self.total_bytes.fetch_add(frame_size, Ordering::Relaxed);
         buffers.push_back(frame);
     }
@@ -174,9 +175,10 @@ impl FrameBufferManager {
     /// Get the next frame for display
     pub async fn pop_frame(&self) -> Option<FrameBuffer> {
         let mut buffers = self.buffers.write().await;
-        
+
         if let Some(frame) = buffers.pop_front() {
-            self.total_bytes.fetch_sub(frame.data.len() as u64, Ordering::Relaxed);
+            self.total_bytes
+                .fetch_sub(frame.data.len() as u64, Ordering::Relaxed);
             Some(frame)
         } else {
             None
@@ -248,20 +250,21 @@ impl TransmissionOptimizer {
     pub async fn adapt_bitrate(&self) -> u64 {
         let latency_samples = self.latency_samples.read().await;
         let bandwidth_samples = self.bandwidth_samples.read().await;
-        
+
         if latency_samples.is_empty() || bandwidth_samples.is_empty() {
             return self.current_bitrate.load(Ordering::Relaxed);
         }
-        
+
         // Calculate average latency
         let avg_latency: f64 = latency_samples.iter().sum::<f64>() / latency_samples.len() as f64;
-        
+
         // Calculate average bandwidth
-        let avg_bandwidth: u64 = bandwidth_samples.iter().sum::<u64>() / bandwidth_samples.len() as u64;
-        
+        let avg_bandwidth: u64 =
+            bandwidth_samples.iter().sum::<u64>() / bandwidth_samples.len() as u64;
+
         // Adaptive bitrate algorithm
         let mut new_bitrate = self.current_bitrate.load(Ordering::Relaxed);
-        
+
         // If latency is high, reduce bitrate
         if avg_latency > 150.0 {
             new_bitrate = (new_bitrate as f64 * 0.8) as u64;
@@ -274,11 +277,11 @@ impl TransmissionOptimizer {
                 new_bitrate = (new_bitrate as f64 * 1.1) as u64;
             }
         }
-        
+
         // Clamp to min/max
         new_bitrate = new_bitrate.clamp(self.min_bitrate, self.max_bitrate);
         self.current_bitrate.store(new_bitrate, Ordering::Relaxed);
-        
+
         new_bitrate
     }
 
@@ -358,11 +361,13 @@ impl InputOptimizer {
     /// Queue an input event
     pub async fn queue_event(&self, event: InputEventEntry) {
         let mut queue = self.event_queue.write().await;
-        
+
         // Drop oldest low-priority events if queue is full
         while queue.len() >= self.max_queue_size {
             // Find and remove lowest priority event
-            if let Some(idx) = queue.iter().enumerate()
+            if let Some(idx) = queue
+                .iter()
+                .enumerate()
                 .max_by_key(|(_, e)| e.priority)
                 .map(|(i, _)| i)
             {
@@ -371,7 +376,7 @@ impl InputOptimizer {
                 break;
             }
         }
-        
+
         queue.push_back(event);
     }
 
@@ -379,25 +384,26 @@ impl InputOptimizer {
     pub async fn get_batch(&self) -> Vec<InputEventEntry> {
         let mut queue = self.event_queue.write().await;
         let mut last_batch = self.last_batch_time.write().await;
-        
+
         // Check if enough time has passed for batching
         if last_batch.elapsed().as_millis() < self.batch_interval_ms as u128 {
             return Vec::new();
         }
-        
+
         *last_batch = Instant::now();
-        
+
         // Sort by priority and timestamp
         let mut events: Vec<_> = queue.drain(..).collect();
         events.sort_by(|a, b| {
-            a.priority.cmp(&b.priority)
+            a.priority
+                .cmp(&b.priority)
                 .then_with(|| a.timestamp.cmp(&b.timestamp))
         });
-        
+
         // Coalesce mouse move events (keep only the latest)
         let mut coalesced = Vec::new();
         let mut last_mouse_move: Option<InputEventEntry> = None;
-        
+
         for event in events {
             if event.event_type == InputEventType::MouseMove {
                 last_mouse_move = Some(event);
@@ -408,11 +414,11 @@ impl InputOptimizer {
                 coalesced.push(event);
             }
         }
-        
+
         if let Some(mm) = last_mouse_move {
             coalesced.push(mm);
         }
-        
+
         coalesced
     }
 
@@ -475,11 +481,11 @@ impl PerformanceMonitor {
         let avg_latency = self.transmission_optimizer.get_avg_latency().await;
         let input_latency = self.input_optimizer.get_avg_latency().await;
         let current_bitrate = self.transmission_optimizer.get_current_bitrate();
-        
+
         let metrics = PerformanceMetrics {
             memory: MemoryStats {
                 allocated_bytes: (allocated * 65536) as u64, // Estimate based on buffer size
-                peak_bytes: 0, // Would need system-level tracking
+                peak_bytes: 0,                               // Would need system-level tracking
                 buffer_pool_size: allocated + reused,
                 active_buffers: allocated,
                 frame_buffer_count: frame_count,
@@ -499,14 +505,14 @@ impl PerformanceMonitor {
             cpu_usage_percent: 0.0, // Would need system-level tracking
             timestamp: Instant::now(),
         };
-        
+
         // Store in history
         let mut history = self.metrics_history.write().await;
         if history.len() >= self.max_history {
             history.pop_front();
         }
         history.push_back(metrics.clone());
-        
+
         metrics
     }
 
@@ -518,16 +524,26 @@ impl PerformanceMonitor {
     /// Get performance summary
     pub async fn get_summary(&self) -> PerformanceSummary {
         let history = self.metrics_history.read().await;
-        
+
         if history.is_empty() {
             return PerformanceSummary::default();
         }
-        
-        let avg_frame_rate = history.iter().map(|m| m.frame_rate).sum::<f64>() / history.len() as f64;
-        let avg_input_latency = history.iter().map(|m| m.input_latency_ms).sum::<f64>() / history.len() as f64;
-        let avg_network_latency = history.iter().map(|m| m.transmission.avg_latency_ms).sum::<f64>() / history.len() as f64;
-        let max_memory = history.iter().map(|m| m.memory.allocated_bytes).max().unwrap_or(0);
-        
+
+        let avg_frame_rate =
+            history.iter().map(|m| m.frame_rate).sum::<f64>() / history.len() as f64;
+        let avg_input_latency =
+            history.iter().map(|m| m.input_latency_ms).sum::<f64>() / history.len() as f64;
+        let avg_network_latency = history
+            .iter()
+            .map(|m| m.transmission.avg_latency_ms)
+            .sum::<f64>()
+            / history.len() as f64;
+        let max_memory = history
+            .iter()
+            .map(|m| m.memory.allocated_bytes)
+            .max()
+            .unwrap_or(0);
+
         PerformanceSummary {
             avg_frame_rate,
             avg_input_latency_ms: avg_input_latency,
@@ -557,19 +573,19 @@ mod tests {
     #[tokio::test]
     async fn test_buffer_pool() {
         let pool = BufferPool::new(1024, 10);
-        
+
         // Acquire buffers
         let buf1 = pool.acquire().await;
         let buf2 = pool.acquire().await;
-        
+
         let (allocated, reused) = pool.stats();
         assert_eq!(allocated, 2);
         assert_eq!(reused, 0);
-        
+
         // Release and reacquire
         pool.release(buf1).await;
         let _buf3 = pool.acquire().await;
-        
+
         let (allocated, reused) = pool.stats();
         assert_eq!(allocated, 2);
         assert_eq!(reused, 1);
@@ -578,19 +594,21 @@ mod tests {
     #[tokio::test]
     async fn test_frame_buffer_manager() {
         let manager = FrameBufferManager::new(3);
-        
+
         // Add frames
         for i in 0..5 {
-            manager.push_frame(FrameBuffer {
-                id: i,
-                timestamp: i,
-                data: vec![0u8; 1024],
-                width: 1920,
-                height: 1080,
-                format: FrameFormat::RGBA,
-            }).await;
+            manager
+                .push_frame(FrameBuffer {
+                    id: i,
+                    timestamp: i,
+                    data: vec![0u8; 1024],
+                    width: 1920,
+                    height: 1080,
+                    format: FrameFormat::RGBA,
+                })
+                .await;
         }
-        
+
         let (count, bytes, dropped) = manager.stats().await;
         assert_eq!(count, 3); // Max buffers
         assert_eq!(dropped, 2); // 2 frames dropped
@@ -599,22 +617,22 @@ mod tests {
     #[tokio::test]
     async fn test_transmission_optimizer() {
         let optimizer = TransmissionOptimizer::new(500_000, 10_000_000, 4_000_000);
-        
+
         // Record good conditions
         for _ in 0..10 {
             optimizer.record_latency(30.0).await;
             optimizer.record_bandwidth(8_000_000).await;
         }
-        
+
         let bitrate = optimizer.adapt_bitrate().await;
         assert!(bitrate >= 500_000 && bitrate <= 10_000_000);
-        
+
         // Record poor conditions
         for _ in 0..10 {
             optimizer.record_latency(200.0).await;
             optimizer.record_bandwidth(1_000_000).await;
         }
-        
+
         let bitrate = optimizer.adapt_bitrate().await;
         // Bitrate should decrease due to high latency
         assert!(bitrate < 4_000_000);
@@ -623,28 +641,32 @@ mod tests {
     #[tokio::test]
     async fn test_input_optimizer() {
         let optimizer = InputOptimizer::new(100, 16);
-        
+
         // Queue events
-        optimizer.queue_event(InputEventEntry {
-            event_type: InputEventType::MouseMove,
-            timestamp: Instant::now(),
-            priority: InputEventType::MouseMove.default_priority(),
-            data: vec![1, 2, 3, 4],
-        }).await;
-        
-        optimizer.queue_event(InputEventEntry {
-            event_type: InputEventType::KeyDown,
-            timestamp: Instant::now(),
-            priority: InputEventType::KeyDown.default_priority(),
-            data: vec![5, 6],
-        }).await;
-        
+        optimizer
+            .queue_event(InputEventEntry {
+                event_type: InputEventType::MouseMove,
+                timestamp: Instant::now(),
+                priority: InputEventType::MouseMove.default_priority(),
+                data: vec![1, 2, 3, 4],
+            })
+            .await;
+
+        optimizer
+            .queue_event(InputEventEntry {
+                event_type: InputEventType::KeyDown,
+                timestamp: Instant::now(),
+                priority: InputEventType::KeyDown.default_priority(),
+                data: vec![5, 6],
+            })
+            .await;
+
         // Wait for batch interval
         tokio::time::sleep(Duration::from_millis(20)).await;
-        
+
         let batch = optimizer.get_batch().await;
         assert_eq!(batch.len(), 2);
-        
+
         // Key events should come before mouse moves (higher priority)
         assert_eq!(batch[0].event_type, InputEventType::KeyDown);
     }
@@ -652,19 +674,19 @@ mod tests {
     #[tokio::test]
     async fn test_input_latency_requirement() {
         let optimizer = InputOptimizer::new(100, 16);
-        
+
         // Record good latencies
         for _ in 0..10 {
             optimizer.record_latency(50.0).await;
         }
-        
+
         assert!(optimizer.meets_latency_requirement().await);
-        
+
         // Record bad latencies
         for _ in 0..20 {
             optimizer.record_latency(150.0).await;
         }
-        
+
         assert!(!optimizer.meets_latency_requirement().await);
     }
 }

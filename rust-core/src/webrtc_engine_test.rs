@@ -1,9 +1,7 @@
 //! Property-based tests for WebRTC Engine
 
+use crate::webrtc_engine::{IceServer, RTCConfiguration, RTCPeerConnectionState, WebRTCEngine};
 use proptest::prelude::*;
-use crate::webrtc_engine::{
-    WebRTCEngine, RTCConfiguration, IceServer, RTCPeerConnectionState,
-};
 
 prop_compose! {
     fn arb_ice_server()(
@@ -49,18 +47,18 @@ proptest! {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let engine = WebRTCEngine::new().await.expect("Failed to create WebRTC engine");
-            
+
             let connection_id = engine.create_peer_connection(config).await
                 .expect("Failed to create peer connection");
-            
+
             assert!(!connection_id.is_empty(), "Connection ID should not be empty");
-            
+
             let state = engine.get_connection_state(&connection_id).await;
             assert_eq!(state, Some(RTCPeerConnectionState::New));
-            
+
             let result = engine.establish_connection(&connection_id, remote_id).await;
             assert!(result.is_ok(), "WebRTC connection establishment should succeed");
-            
+
             let _ = engine.close_connection(&connection_id).await;
         });
     }
@@ -73,13 +71,16 @@ mod unit_tests {
     #[tokio::test]
     async fn test_webrtc_engine_creation() {
         let engine = WebRTCEngine::new().await;
-        assert!(engine.is_ok(), "WebRTC engine should be created successfully");
+        assert!(
+            engine.is_ok(),
+            "WebRTC engine should be created successfully"
+        );
     }
 
     #[tokio::test]
     async fn test_peer_connection_lifecycle() {
         let engine = WebRTCEngine::new().await.expect("Failed to create engine");
-        
+
         let config = RTCConfiguration {
             ice_servers: vec![IceServer {
                 urls: vec!["stun:stun.l.google.com:19302".to_string()],
@@ -90,16 +91,20 @@ mod unit_tests {
             bundle_policy: None,
             rtcp_mux_policy: None,
         };
-        
-        let connection_id = engine.create_peer_connection(config).await
+
+        let connection_id = engine
+            .create_peer_connection(config)
+            .await
             .expect("Failed to create peer connection");
-        
+
         let state = engine.get_connection_state(&connection_id).await;
         assert_eq!(state, Some(RTCPeerConnectionState::New));
-        
-        engine.close_connection(&connection_id).await
+
+        engine
+            .close_connection(&connection_id)
+            .await
             .expect("Failed to close connection");
-        
+
         let state = engine.get_connection_state(&connection_id).await;
         assert_eq!(state, None);
     }
@@ -107,25 +112,30 @@ mod unit_tests {
     #[tokio::test]
     async fn test_connection_not_found_error() {
         let engine = WebRTCEngine::new().await.expect("Failed to create engine");
-        
-        let result = engine.establish_connection("non-existent", "remote123".to_string()).await;
+
+        let result = engine
+            .establish_connection("non-existent", "remote123".to_string())
+            .await;
         assert!(result.is_err(), "Should fail for non-existent connection");
-        
+
         let result = engine.close_connection("non-existent").await;
-        assert!(result.is_ok(), "Closing non-existent connection should not error");
+        assert!(
+            result.is_ok(),
+            "Closing non-existent connection should not error"
+        );
     }
 
     #[tokio::test]
     async fn test_empty_ice_servers_config() {
         let engine = WebRTCEngine::new().await.expect("Failed to create engine");
-        
+
         let config = RTCConfiguration {
             ice_servers: vec![],
             ice_transport_policy: "all".to_string(),
             bundle_policy: None,
             rtcp_mux_policy: None,
         };
-        
+
         let result = engine.create_peer_connection(config).await;
         assert!(result.is_ok(), "Should handle empty ICE servers gracefully");
     }

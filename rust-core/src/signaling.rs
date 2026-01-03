@@ -1,5 +1,5 @@
 //! WebSocket Signaling Service
-//! 
+//!
 //! Implements device registration, discovery, and WebRTC signaling exchange.
 //! Requirements: 4.1, 4.2, 4.3
 
@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::{mpsc, RwLock, Mutex};
+use tokio::sync::{mpsc, Mutex, RwLock};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 use uuid::Uuid;
 
@@ -53,15 +53,34 @@ pub enum SignalingMessage {
     /// Device status response
     StatusResponse(DeviceStatus),
     /// SDP Offer for WebRTC connection
-    Offer { from: String, to: String, sdp: String },
+    Offer {
+        from: String,
+        to: String,
+        sdp: String,
+    },
     /// SDP Answer for WebRTC connection
-    Answer { from: String, to: String, sdp: String },
+    Answer {
+        from: String,
+        to: String,
+        sdp: String,
+    },
     /// ICE Candidate for NAT traversal
-    IceCandidate { from: String, to: String, candidate: String },
+    IceCandidate {
+        from: String,
+        to: String,
+        candidate: String,
+    },
     /// Connection request from remote device
-    ConnectionRequest { from: String, device_info: DeviceInfo },
+    ConnectionRequest {
+        from: String,
+        device_info: DeviceInfo,
+    },
     /// Connection request response
-    ConnectionResponse { from: String, to: String, accepted: bool },
+    ConnectionResponse {
+        from: String,
+        to: String,
+        accepted: bool,
+    },
     /// Heartbeat to keep connection alive
     Heartbeat { device_id: String },
     /// Heartbeat acknowledgment
@@ -84,13 +103,15 @@ pub enum SignalingEvent {
     /// ICE Candidate received from remote device
     IceCandidateReceived { from: String, candidate: String },
     /// Connection request from remote device
-    ConnectionRequest { from: String, device_info: DeviceInfo },
+    ConnectionRequest {
+        from: String,
+        device_info: DeviceInfo,
+    },
     /// Connection response received
     ConnectionResponse { from: String, accepted: bool },
     /// Error occurred
     Error { code: u32, message: String },
 }
-
 
 /// Signaling exchange metrics for performance monitoring
 #[derive(Debug, Clone, Default)]
@@ -143,7 +164,7 @@ impl SignalingClient {
     /// Create a new signaling client
     pub fn new(server_url: String) -> Result<Self> {
         let (event_sender, event_receiver) = mpsc::unbounded_channel();
-        
+
         Ok(Self {
             device_id: Arc::new(RwLock::new(None)),
             server_url,
@@ -161,34 +182,33 @@ impl SignalingClient {
     /// Requirement 4.1: WebSocket protocol for real-time bidirectional communication
     pub async fn connect(&self) -> Result<()> {
         tracing::info!("Connecting to signaling server: {}", self.server_url);
-        
-        let url = url::Url::parse(&self.server_url)
-            .context("Invalid signaling server URL")?;
-        
+
+        let url = url::Url::parse(&self.server_url).context("Invalid signaling server URL")?;
+
         let (ws_stream, _) = connect_async(url)
             .await
             .context("Failed to connect to signaling server")?;
-        
+
         let (mut write, mut read) = ws_stream.split();
-        
+
         // Create channel for sending messages
         let (tx, mut rx) = mpsc::unbounded_channel::<SignalingMessage>();
-        
+
         // Store sender for later use
         {
             let mut ws_sender = self.ws_sender.lock().await;
             *ws_sender = Some(tx);
         }
-        
+
         // Mark as connected
         {
             let mut connected = self.connected.write().await;
             *connected = true;
         }
-        
+
         // Notify listeners
         let _ = self.event_sender.send(SignalingEvent::Connected);
-        
+
         // Clone references for async tasks
         let event_sender = self.event_sender.clone();
         let connected = self.connected.clone();
@@ -196,7 +216,7 @@ impl SignalingClient {
         let registered_devices = self.registered_devices.clone();
         let metrics = self.metrics.clone();
         let pending_exchanges = self.pending_exchanges.clone();
-        
+
         // Spawn task to handle outgoing messages
         tokio::spawn(async move {
             while let Some(msg) = rx.recv().await {
@@ -207,21 +227,21 @@ impl SignalingClient {
                         continue;
                     }
                 };
-                
+
                 if let Err(e) = write.send(Message::Text(json)).await {
                     tracing::error!("Failed to send message: {}", e);
                     break;
                 }
-                
+
                 // Update metrics
                 let mut m = metrics.write().await;
                 m.messages_sent += 1;
             }
         });
-        
+
         // Clone metrics for read task
         let metrics = self.metrics.clone();
-        
+
         // Spawn task to handle incoming messages
         tokio::spawn(async move {
             while let Some(msg_result) = read.next().await {
@@ -232,7 +252,7 @@ impl SignalingClient {
                             let mut m = metrics.write().await;
                             m.messages_received += 1;
                         }
-                        
+
                         match serde_json::from_str::<SignalingMessage>(&text) {
                             Ok(msg) => {
                                 Self::handle_message(
@@ -242,7 +262,8 @@ impl SignalingClient {
                                     &registered_devices,
                                     &metrics,
                                     &pending_exchanges,
-                                ).await;
+                                )
+                                .await;
                             }
                             Err(e) => {
                                 tracing::error!("Failed to parse message: {}", e);
@@ -260,20 +281,19 @@ impl SignalingClient {
                     _ => {}
                 }
             }
-            
+
             // Mark as disconnected
             {
                 let mut c = connected.write().await;
                 *c = false;
             }
-            
+
             let _ = event_sender.send(SignalingEvent::Disconnected);
         });
-        
+
         tracing::info!("Connected to signaling server");
         Ok(())
     }
-
 
     /// Handle incoming signaling message
     async fn handle_message(
@@ -285,7 +305,10 @@ impl SignalingClient {
         pending_exchanges: &Arc<RwLock<HashMap<String, SignalingExchange>>>,
     ) {
         match msg {
-            SignalingMessage::RegisterResponse { device_id: id, success } => {
+            SignalingMessage::RegisterResponse {
+                device_id: id,
+                success,
+            } => {
                 if success {
                     let mut did = device_id.write().await;
                     *did = Some(id.clone());
@@ -294,26 +317,29 @@ impl SignalingClient {
                     tracing::error!("Device registration failed");
                 }
             }
-            
+
             SignalingMessage::StatusResponse(status) => {
                 tracing::debug!("Received device status: {:?}", status);
             }
-            
+
             SignalingMessage::Offer { from, sdp, .. } => {
                 // Track exchange timing
                 let exchange_key = format!("offer_{}", from);
                 {
                     let mut pending = pending_exchanges.write().await;
-                    pending.insert(exchange_key, SignalingExchange {
-                        start_time: Instant::now(),
-                        exchange_type: "offer".to_string(),
-                        target_device: from.clone(),
-                    });
+                    pending.insert(
+                        exchange_key,
+                        SignalingExchange {
+                            start_time: Instant::now(),
+                            exchange_type: "offer".to_string(),
+                            target_device: from.clone(),
+                        },
+                    );
                 }
-                
+
                 let _ = event_sender.send(SignalingEvent::OfferReceived { from, sdp });
             }
-            
+
             SignalingMessage::Answer { from, sdp, .. } => {
                 // Complete exchange timing
                 let exchange_key = format!("offer_{}", from);
@@ -329,37 +355,39 @@ impl SignalingClient {
                         m.avg_rtt_ms = (m.avg_rtt_ms * (total - 1.0) + duration as f64) / total;
                     }
                 }
-                
+
                 let _ = event_sender.send(SignalingEvent::AnswerReceived { from, sdp });
             }
-            
-            SignalingMessage::IceCandidate { from, candidate, .. } => {
+
+            SignalingMessage::IceCandidate {
+                from, candidate, ..
+            } => {
                 let _ = event_sender.send(SignalingEvent::IceCandidateReceived { from, candidate });
             }
-            
+
             SignalingMessage::ConnectionRequest { from, device_info } => {
                 // Cache device info
                 {
                     let mut devices = registered_devices.write().await;
                     devices.insert(from.clone(), device_info.clone());
                 }
-                
+
                 let _ = event_sender.send(SignalingEvent::ConnectionRequest { from, device_info });
             }
-            
+
             SignalingMessage::ConnectionResponse { from, accepted, .. } => {
                 let _ = event_sender.send(SignalingEvent::ConnectionResponse { from, accepted });
             }
-            
+
             SignalingMessage::HeartbeatAck => {
                 tracing::trace!("Heartbeat acknowledged");
             }
-            
+
             SignalingMessage::Error { code, message } => {
                 tracing::error!("Signaling error {}: {}", code, message);
                 let _ = event_sender.send(SignalingEvent::Error { code, message });
             }
-            
+
             _ => {
                 tracing::debug!("Unhandled message type");
             }
@@ -369,19 +397,19 @@ impl SignalingClient {
     /// Disconnect from the signaling server
     pub async fn disconnect(&self) -> Result<()> {
         tracing::info!("Disconnecting from signaling server");
-        
+
         // Clear WebSocket sender to close connection
         {
             let mut ws_sender = self.ws_sender.lock().await;
             *ws_sender = None;
         }
-        
+
         // Mark as disconnected
         {
             let mut connected = self.connected.write().await;
             *connected = false;
         }
-        
+
         Ok(())
     }
 
@@ -394,23 +422,23 @@ impl SignalingClient {
 
         let msg = SignalingMessage::Register(device_info.clone());
         self.send_message(msg).await?;
-        
+
         // For now, generate a local device ID if server doesn't respond
         // In production, this would wait for RegisterResponse
         let device_id = device_info.device_id.clone();
-        
+
         // Cache locally
         {
             let mut devices = self.registered_devices.write().await;
             devices.insert(device_id.clone(), device_info);
         }
-        
+
         // Store device ID
         {
             let mut did = self.device_id.write().await;
             *did = Some(device_id.clone());
         }
-        
+
         tracing::info!("Device registered with ID: {}", device_id);
         Ok(device_id)
     }
@@ -425,7 +453,7 @@ impl SignalingClient {
             device_id: device_id.to_string(),
         };
         self.send_message(msg).await?;
-        
+
         // Return cached status or default
         Ok(DeviceStatus {
             device_id: device_id.to_string(),
@@ -434,30 +462,34 @@ impl SignalingClient {
         })
     }
 
-
     /// Send SDP offer to target device
     /// Requirement 4.3: Forward SDP offer/answer
     pub async fn send_offer(&self, target_id: &str, offer_sdp: &str) -> Result<()> {
-        let device_id = self.get_device_id().await
+        let device_id = self
+            .get_device_id()
+            .await
             .ok_or_else(|| anyhow::anyhow!("Device not registered"))?;
-        
+
         // Track exchange start time
         let exchange_key = format!("offer_{}", target_id);
         {
             let mut pending = self.pending_exchanges.write().await;
-            pending.insert(exchange_key, SignalingExchange {
-                start_time: Instant::now(),
-                exchange_type: "offer".to_string(),
-                target_device: target_id.to_string(),
-            });
+            pending.insert(
+                exchange_key,
+                SignalingExchange {
+                    start_time: Instant::now(),
+                    exchange_type: "offer".to_string(),
+                    target_device: target_id.to_string(),
+                },
+            );
         }
-        
+
         let msg = SignalingMessage::Offer {
             from: device_id,
             to: target_id.to_string(),
             sdp: offer_sdp.to_string(),
         };
-        
+
         self.send_message(msg).await?;
         tracing::info!("Sent offer to device: {}", target_id);
         Ok(())
@@ -466,15 +498,17 @@ impl SignalingClient {
     /// Send SDP answer to target device
     /// Requirement 4.3: Forward SDP offer/answer
     pub async fn send_answer(&self, target_id: &str, answer_sdp: &str) -> Result<()> {
-        let device_id = self.get_device_id().await
+        let device_id = self
+            .get_device_id()
+            .await
             .ok_or_else(|| anyhow::anyhow!("Device not registered"))?;
-        
+
         let msg = SignalingMessage::Answer {
             from: device_id,
             to: target_id.to_string(),
             sdp: answer_sdp.to_string(),
         };
-        
+
         self.send_message(msg).await?;
         tracing::info!("Sent answer to device: {}", target_id);
         Ok(())
@@ -483,30 +517,38 @@ impl SignalingClient {
     /// Send ICE candidate to target device
     /// Requirement 4.3: Forward ICE candidates
     pub async fn send_ice_candidate(&self, target_id: &str, candidate: &str) -> Result<()> {
-        let device_id = self.get_device_id().await
+        let device_id = self
+            .get_device_id()
+            .await
             .ok_or_else(|| anyhow::anyhow!("Device not registered"))?;
-        
+
         let msg = SignalingMessage::IceCandidate {
             from: device_id,
             to: target_id.to_string(),
             candidate: candidate.to_string(),
         };
-        
+
         self.send_message(msg).await?;
         tracing::debug!("Sent ICE candidate to device: {}", target_id);
         Ok(())
     }
 
     /// Send connection request to target device
-    pub async fn send_connection_request(&self, target_id: &str, device_info: DeviceInfo) -> Result<()> {
-        let device_id = self.get_device_id().await
+    pub async fn send_connection_request(
+        &self,
+        target_id: &str,
+        device_info: DeviceInfo,
+    ) -> Result<()> {
+        let device_id = self
+            .get_device_id()
+            .await
             .ok_or_else(|| anyhow::anyhow!("Device not registered"))?;
-        
+
         let msg = SignalingMessage::ConnectionRequest {
             from: device_id,
             device_info,
         };
-        
+
         self.send_message(msg).await?;
         tracing::info!("Sent connection request to device: {}", target_id);
         Ok(())
@@ -514,25 +556,33 @@ impl SignalingClient {
 
     /// Respond to connection request
     pub async fn respond_to_connection(&self, target_id: &str, accepted: bool) -> Result<()> {
-        let device_id = self.get_device_id().await
+        let device_id = self
+            .get_device_id()
+            .await
             .ok_or_else(|| anyhow::anyhow!("Device not registered"))?;
-        
+
         let msg = SignalingMessage::ConnectionResponse {
             from: device_id,
             to: target_id.to_string(),
             accepted,
         };
-        
+
         self.send_message(msg).await?;
-        tracing::info!("Sent connection response to device: {} (accepted: {})", target_id, accepted);
+        tracing::info!(
+            "Sent connection response to device: {} (accepted: {})",
+            target_id,
+            accepted
+        );
         Ok(())
     }
 
     /// Send heartbeat to keep connection alive
     pub async fn send_heartbeat(&self) -> Result<()> {
-        let device_id = self.get_device_id().await
+        let device_id = self
+            .get_device_id()
+            .await
             .ok_or_else(|| anyhow::anyhow!("Device not registered"))?;
-        
+
         let msg = SignalingMessage::Heartbeat { device_id };
         self.send_message(msg).await?;
         Ok(())
@@ -541,9 +591,10 @@ impl SignalingClient {
     /// Internal method to send a signaling message
     async fn send_message(&self, msg: SignalingMessage) -> Result<()> {
         let ws_sender = self.ws_sender.lock().await;
-        
+
         if let Some(sender) = ws_sender.as_ref() {
-            sender.send(msg)
+            sender
+                .send(msg)
                 .map_err(|_| anyhow::anyhow!("Failed to send message"))?;
             Ok(())
         } else {
@@ -604,10 +655,10 @@ mod tests {
             to: "device2".to_string(),
             sdp: "test_sdp".to_string(),
         };
-        
+
         let json = serde_json::to_string(&msg).unwrap();
         let parsed: SignalingMessage = serde_json::from_str(&json).unwrap();
-        
+
         match parsed {
             SignalingMessage::Offer { from, to, sdp } => {
                 assert_eq!(from, "device1");
@@ -632,10 +683,10 @@ mod tests {
                 input_control: true,
             },
         };
-        
+
         let json = serde_json::to_string(&info).unwrap();
         let parsed: DeviceInfo = serde_json::from_str(&json).unwrap();
-        
+
         assert_eq!(parsed.device_id, "test_id");
         assert_eq!(parsed.device_name, "Test Device");
         assert!(parsed.capabilities.screen_capture);

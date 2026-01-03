@@ -191,7 +191,6 @@ impl ConnectionEvent {
     }
 }
 
-
 /// 日志配置
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LogConfig {
@@ -253,7 +252,7 @@ impl LogManager {
     /// 记录日志
     pub fn log(&self, entry: LogEntry) {
         let config = self.config.read().unwrap();
-        
+
         // 检查日志级别
         if entry.level < config.min_level {
             return;
@@ -306,7 +305,11 @@ impl LogManager {
     /// 记录连接事件
     pub fn log_connection_event(&self, event: ConnectionEvent) {
         // 同时记录为普通日志
-        let level = if event.success { LogLevel::Info } else { LogLevel::Error };
+        let level = if event.success {
+            LogLevel::Info
+        } else {
+            LogLevel::Error
+        };
         let message = if let Some(ref err) = event.error_message {
             format!("{}: {}", event.event_type, err)
         } else {
@@ -338,7 +341,7 @@ impl LogManager {
     pub fn get_logs(&self, level: Option<LogLevel>, limit: Option<usize>) -> Vec<LogEntry> {
         let logs = self.logs.read().unwrap();
         let limit = limit.unwrap_or(logs.len());
-        
+
         logs.iter()
             .filter(|log| level.map_or(true, |l| log.level >= l))
             .take(limit)
@@ -350,11 +353,8 @@ impl LogManager {
     pub fn get_connection_events(&self, limit: Option<usize>) -> Vec<ConnectionEvent> {
         let events = self.connection_events.read().unwrap();
         let limit = limit.unwrap_or(events.len());
-        
-        events.iter()
-            .take(limit)
-            .cloned()
-            .collect()
+
+        events.iter().take(limit).cloned().collect()
     }
 
     /// 清除日志
@@ -387,9 +387,12 @@ impl LogManager {
     pub fn export_logs(&self) -> String {
         let logs = self.logs.read().unwrap();
         let mut buffer = String::new();
-        
+
         buffer.push_str("=== 远程桌面客户端日志导出 ===\n");
-        buffer.push_str(&format!("导出时间: {}\n", Utc::now().format("%Y-%m-%d %H:%M:%S")));
+        buffer.push_str(&format!(
+            "导出时间: {}\n",
+            Utc::now().format("%Y-%m-%d %H:%M:%S")
+        ));
         buffer.push_str(&format!("日志条目数: {}\n\n", logs.len()));
 
         for log in logs.iter().rev() {
@@ -404,9 +407,12 @@ impl LogManager {
     pub fn export_connection_events(&self) -> String {
         let events = self.connection_events.read().unwrap();
         let mut buffer = String::new();
-        
+
         buffer.push_str("=== 连接事件导出 ===\n");
-        buffer.push_str(&format!("导出时间: {}\n", Utc::now().format("%Y-%m-%d %H:%M:%S")));
+        buffer.push_str(&format!(
+            "导出时间: {}\n",
+            Utc::now().format("%Y-%m-%d %H:%M:%S")
+        ));
         buffer.push_str(&format!("事件数: {}\n\n", events.len()));
 
         for event in events.iter().rev() {
@@ -435,11 +441,8 @@ impl LogManager {
 
     /// 启用文件日志
     pub fn enable_file_logging(&self, path: PathBuf) -> Result<()> {
-        let file = OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&path)?;
-        
+        let file = OpenOptions::new().create(true).append(true).open(&path)?;
+
         if let Ok(mut writer) = self.file_writer.write() {
             *writer = Some(BufWriter::new(file));
         }
@@ -485,11 +488,11 @@ mod tests {
     #[test]
     fn test_log_manager_basic() {
         let manager = LogManager::default();
-        
+
         manager.info("Test", "Info message");
         manager.warn("Test", "Warn message");
         manager.error("Test", "Error message");
-        
+
         let logs = manager.get_logs(None, None);
         assert_eq!(logs.len(), 3);
     }
@@ -501,12 +504,12 @@ mod tests {
             ..Default::default()
         };
         let manager = LogManager::new(config);
-        
+
         manager.debug("Test", "Debug message");
         manager.info("Test", "Info message");
         manager.warn("Test", "Warn message");
         manager.error("Test", "Error message");
-        
+
         let logs = manager.get_logs(None, None);
         assert_eq!(logs.len(), 2); // Only warn and error
     }
@@ -514,13 +517,13 @@ mod tests {
     #[test]
     fn test_connection_event_logging() {
         let manager = LogManager::default();
-        
+
         let event = ConnectionEvent::new(ConnectionEventType::ConnectionEstablished)
             .with_session("session-123")
             .with_remote_device("device-456");
-        
+
         manager.log_connection_event(event);
-        
+
         let events = manager.get_connection_events(None);
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].session_id, Some("session-123".to_string()));
@@ -529,10 +532,10 @@ mod tests {
     #[test]
     fn test_log_export() {
         let manager = LogManager::default();
-        
+
         manager.info("Test", "Test message 1");
         manager.warn("Test", "Test message 2");
-        
+
         let export = manager.export_logs();
         assert!(export.contains("Test message 1"));
         assert!(export.contains("Test message 2"));
