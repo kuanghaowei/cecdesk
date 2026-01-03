@@ -574,6 +574,9 @@ class MonitoringService extends StateNotifier<MonitoringState> {
       DiagnosticStatus overallStatus = DiagnosticStatus.good;
       List<String> recommendations = [];
 
+      // Note: internetConnected and signalingServer.reachable are currently
+      // hardcoded for development. In production, these would be dynamically detected.
+      // ignore: dead_code
       if (!internetConnected) {
         overallStatus = DiagnosticStatus.critical;
         recommendations.add('请检查网络连接');
